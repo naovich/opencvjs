@@ -18,6 +18,7 @@
       }
       .video-section {
         flex: 1;
+        position: relative;
       }
       .result-section {
         flex: 1;
@@ -45,6 +46,14 @@
         padding: 5px 0;
         border-bottom: 1px solid #ddd;
       }
+      #overlay-rectangle {
+        position: absolute;
+        border: 2px solid orange;
+        pointer-events: none;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
     </style>
   </head>
   <body>
@@ -52,8 +61,9 @@
     <div class="container">
       <div class="video-section">
         <video id="video" width="640" height="480" autoplay></video>
+        <div id="overlay-rectangle"></div>
         <div class="controls">
-          <button id="capture">Capture</button>
+          <button id="toggleOverlay">Afficher/Masquer le guide</button>
         </div>
       </div>
       <div class="result-section">
@@ -90,9 +100,30 @@
       let varianceValue = document.getElementById("varianceValue");
       let brightnessValue = document.getElementById("brightnessValue");
       let openCv = null;
-      const varianceThreshold = 100;
-      const maxBrightness = 200;
-      const minBrightness = 50;
+      let isOverlayVisible = true;
+
+      // Constantes de configuration
+      const ANALYSIS_INTERVAL = 500; // Intervalle d'analyse en ms
+      const VARIANCE_THRESHOLD = 100; // Seuil de flou
+      const MAX_BRIGHTNESS = 200;
+      const MIN_BRIGHTNESS = 50;
+      const PPM = 5; // Pixels par millimètre
+      const VIDEO_WIDTH = 640;
+      const VIDEO_HEIGHT = 480;
+
+      // Calculer les dimensions du rectangle avec le ratio 85.60:53.98
+      const targetRatio = 85.6 / 53.98;
+      const margin = 100;
+      const rectHeight = VIDEO_HEIGHT - margin * 2.5;
+      const rectWidth = rectHeight * targetRatio;
+
+      // Appliquer les dimensions au rectangle
+      const overlay = document.getElementById("overlay-rectangle");
+      overlay.style.width = rectWidth + "px";
+      overlay.style.height = rectHeight + "px";
+      overlay.style.top = "35%";
+      overlay.style.left = "50%";
+      overlay.style.transform = "translate(-50%, -50%)";
 
       navigator.mediaDevices
         .getUserMedia({ video: true })
@@ -103,7 +134,9 @@
           console.error("Error accessing the camera: " + err);
         });
 
-      document.getElementById("capture").addEventListener("click", async () => {
+      async function analyzeFrame() {
+        if (!openCv) return;
+
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -136,16 +169,16 @@
         let status = [];
 
         // Analyse du flou
-        if (variance < varianceThreshold) {
+        if (variance < VARIANCE_THRESHOLD) {
           status.push("Image floue");
         } else {
           status.push("Image nette");
         }
 
         // Analyse de la luminosité
-        if (brightness < minBrightness) {
+        if (brightness < MIN_BRIGHTNESS) {
           status.push("Trop sombre");
-        } else if (brightness > maxBrightness) {
+        } else if (brightness > MAX_BRIGHTNESS) {
           status.push("Trop lumineuse");
         } else {
           status.push("Luminosité correcte");
@@ -159,12 +192,20 @@
         laplacian.delete();
         mean.delete();
         stddev.delete();
-      });
+      }
 
       async function onOpenCvReady() {
         console.log("OpenCV.js is ready.");
         openCv = await cv;
+        // Démarrer l'analyse automatique
+        setInterval(analyzeFrame, ANALYSIS_INTERVAL);
       }
+
+      // Ajouter le contrôle de visibilité
+      document.getElementById("toggleOverlay").addEventListener("click", () => {
+        isOverlayVisible = !isOverlayVisible;
+        overlay.style.display = isOverlayVisible ? "block" : "none";
+      });
     </script>
     <script
       async
