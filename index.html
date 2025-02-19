@@ -103,7 +103,7 @@
       let isOverlayVisible = false;
 
       // Constantes de configuration
-      const ANALYSIS_INTERVAL = 300;
+      const ANALYSIS_INTERVAL = 100;
       const VARIANCE_THRESHOLD = 100;
       const MAX_BRIGHTNESS = 200;
       const MIN_BRIGHTNESS = 50;
@@ -127,6 +127,17 @@
       overlay.style.top = "35%";
       overlay.style.left = "50%";
       overlay.style.transform = "translate(-50%, -50%)";
+
+      // Ajout des nouvelles constantes
+      const ANGLE_TOLERANCE = 5; // Tolérance en degrés pour les angles
+      const ANGLE_TOLERANCE_SHOW = 15; // Tolérance en degrés pour les angles
+      const ASPECT_RATIO_TARGET = 85.6 / 53.98; // Ratio largeur/hauteur d'une carte d'identité
+      const ASPECT_RATIO_TOLERANCE = 0.15; // Tolérance de 15% pour le ratio
+      const MIN_CARD_AREA = 50000; // Surface minimale en pixels pour éviter les faux positifs
+
+      // Ajout des constantes pour la comparaison avec le rectangle guide
+      const OVERLAP_THRESHOLD = 0.7; // 70% de superposition minimum
+      const SIZE_DIFFERENCE_THRESHOLD = 0.2; // 20% de différence de taille maximum
 
       navigator.mediaDevices
         .getUserMedia({ video: true })
@@ -162,8 +173,7 @@
           openCv.CHAIN_APPROX_SIMPLE
         );
 
-        // On cherche  le plus grand contour
-        // il faudra ajouter d'autres condition
+        // On cherche le plus grand contour
         let maxArea = 0;
         let maxContourIndex = -1;
         for (let i = 0; i < contours.size(); i++) {
@@ -175,23 +185,54 @@
           }
         }
 
-        // Dessiner le contour de la carte si trouvé
+        // Dessiner toujours le contour en vert
         if (maxContourIndex >= 0) {
           let maxContour = contours.get(maxContourIndex);
           let approx = new openCv.Mat();
           let epsilon = 0.02 * openCv.arcLength(maxContour, true);
           openCv.approxPolyDP(maxContour, approx, epsilon, true);
 
+          console.log("Nombre de points détectés:", approx.rows);
+
+          // Vérification si c'est un rectangle
           if (approx.rows == 4) {
-            openCv.drawContours(
-              src,
-              contours,
-              maxContourIndex,
-              new openCv.Scalar(0, 255, 0, 255),
-              2
-            );
+            console.log("4 points détectés - Analyse des angles...");
+
+            // Vérification pour l'affichage du contour (tolérance plus large)
+            if (isValidRectangle(approx, ANGLE_TOLERANCE_SHOW)) {
+              openCv.drawContours(
+                src,
+                contours,
+                maxContourIndex,
+                new openCv.Scalar(0, 255, 0, 255),
+                2
+              );
+
+              // Vérification pour le fond vert (tolérance plus stricte)
+              if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
+                console.log("Rectangle parfaitement valide détecté !");
+                document.body.style.backgroundColor = "green";
+              } else {
+                console.log("Rectangle détecté mais pas assez précis");
+                document.body.style.backgroundColor = "white";
+              }
+            } else {
+              console.log("Les angles ne correspondent pas à un rectangle");
+              document.body.style.backgroundColor = "white";
+            }
+          } else {
+            console.log("Ce n'est pas un quadrilatère");
+            document.body.style.backgroundColor = "white";
           }
           approx.delete();
+        } else {
+          console.log("Aucun contour significatif détecté");
+          document.body.style.backgroundColor = "white";
+        }
+
+        // Après la détection des contours et avant l'affichage
+        if (maxContourIndex >= 0) {
+          await analyzeCardPosition(contours, maxContourIndex);
         }
 
         // Afficher le résultat
@@ -211,7 +252,6 @@
         let mean = new openCv.Mat();
         openCv.meanStdDev(gray, mean, meanStdDev);
         let brightness = Math.round(mean.data64F[0]);
-        console.log(brightness);
         brightnessValue.textContent = brightness;
 
         // Nettoyage
@@ -236,6 +276,68 @@
         laplacian.delete();
         mean.delete();
         stdDev.delete();
+      }
+
+      async function analyzeCardPosition(contours, maxContourIndex) {
+        if (maxContourIndex < 0) return;
+
+        // Récupérer les dimensions du rectangle guide (orange)
+        const guideRect = {
+          width: rectWidth,
+          height: rectHeight,
+          x: video.width / 2 - rectWidth / 2,
+          y: video.height * 0.35 - rectHeight / 2,
+        };
+
+        // Analyser le contour détecté (vert)
+        let maxContour = contours.get(maxContourIndex);
+        let boundingRect = openCv.boundingRect(maxContour);
+
+        // Calculer le pourcentage de superposition
+        let intersectionArea = calculateIntersectionArea(
+          guideRect,
+          boundingRect
+        );
+        let guideArea = guideRect.width * guideRect.height;
+        let detectedArea = boundingRect.width * boundingRect.height;
+        let overlapRatio = intersectionArea / Math.min(guideArea, detectedArea);
+
+        // Calculer la différence de taille
+        let sizeDifference = Math.abs(guideArea - detectedArea) / guideArea;
+
+        // Mise à jour du statut
+        if (
+          overlapRatio >= OVERLAP_THRESHOLD &&
+          sizeDifference <= SIZE_DIFFERENCE_THRESHOLD
+        ) {
+          result.textContent = "✅ Carte bien positionnée";
+          result.style.color = "green";
+        } else {
+          let issues = [];
+          if (overlapRatio < OVERLAP_THRESHOLD) {
+            issues.push("centrage incorrect");
+          }
+          if (sizeDifference > SIZE_DIFFERENCE_THRESHOLD) {
+            issues.push("mauvaise distance");
+          }
+          result.textContent =
+            "❌ Ajustez la position (" + issues.join(", ") + ")";
+          result.style.color = "red";
+        }
+      }
+
+      function calculateIntersectionArea(rect1, rect2) {
+        let xOverlap = Math.max(
+          0,
+          Math.min(rect1.x + rect1.width, rect2.x + rect2.width) -
+            Math.max(rect1.x, rect2.x)
+        );
+        let yOverlap = Math.max(
+          0,
+          Math.min(rect1.y + rect1.height, rect2.y + rect2.height) -
+            Math.max(rect1.y, rect2.y)
+        );
+        return xOverlap * yOverlap;
       }
 
       async function runAllAnalyses() {
@@ -271,6 +373,65 @@
         isOverlayVisible = !isOverlayVisible;
         overlay.style.display = isOverlayVisible ? "block" : "none";
       });
+
+      function isValidRectangle(approx, tolerance) {
+        // Extraire les points du contour
+        let points = [];
+        for (let i = 0; i < 4; i++) {
+          points.push({
+            x: approx.data32S[i * 2],
+            y: approx.data32S[i * 2 + 1],
+          });
+        }
+
+        // Calculer les angles entre les segments
+        let angles = [];
+        for (let i = 0; i < 4; i++) {
+          let p1 = points[i];
+          let p2 = points[(i + 1) % 4];
+          let p3 = points[(i + 2) % 4];
+
+          let angle = calculateAngle(p1, p2, p3);
+          angles.push(angle);
+        }
+
+        console.log(
+          "Angles détectés:",
+          angles,
+          "Tolérance utilisée:",
+          tolerance
+        );
+
+        // Vérifier si tous les angles sont proches de 90 degrés
+        let isValid = angles.every(
+          (angle) => Math.abs(angle - 90) <= tolerance
+        );
+
+        if (!isValid) {
+          console.log(
+            "Angles hors tolérance. Tolérance acceptée:",
+            90 - tolerance,
+            "à",
+            90 + tolerance
+          );
+        }
+
+        return isValid;
+      }
+
+      function calculateAngle(p1, p2, p3) {
+        // Calculer les vecteurs
+        let v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+        let v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+
+        // Calculer l'angle en degrés
+        let dot = v1.x * v2.x + v1.y * v2.y;
+        let v1mag = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+        let v2mag = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+        let angle = Math.acos(dot / (v1mag * v2mag));
+
+        return angle * (180 / Math.PI);
+      }
     </script>
     <script
       async
