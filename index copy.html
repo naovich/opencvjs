@@ -57,7 +57,7 @@
     </style>
   </head>
   <body>
-    <h1>Analyse d'image avec OpenCV.js</h1>
+    <h1>Image Analysis with OpenCV.js</h1>
     <div class="container">
       <div class="video-section">
         <video id="video" width="640" height="480" autoplay></video>
@@ -100,7 +100,7 @@
       let varianceValue = document.getElementById("varianceValue");
       let brightnessValue = document.getElementById("brightnessValue");
       let openCv = null;
-      let isOverlayVisible = false;
+      let isOverlayVisible = true;
 
       // Constantes de configuration
       const ANALYSIS_INTERVAL = 300;
@@ -111,10 +111,7 @@
       const VIDEO_WIDTH = 640;
       const VIDEO_HEIGHT = 480;
 
-      // Calcull des dimensions de la carte  d'indentité, peut être à modifier selon
-      // que ça soit une carte d'indentité ou un passeport,
-
-      //Est-ce qu'il faut afficher le  le cadrage orange ou pas, à voir
+      // Calculer les dimensions du rectangle avec le ratio 85.60:53.98
       const targetRatio = 85.6 / 53.98;
       const margin = 100;
       const rectHeight = VIDEO_HEIGHT - margin * 2.5;
@@ -137,9 +134,20 @@
           console.error("Error accessing the camera: " + err);
         });
 
-      async function analyzeFrame(src) {
+      async function analyzeFrame() {
         if (!openCv) return;
 
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+        let src = await openCv.matFromArray(
+          canvas.height,
+          canvas.width,
+          openCv.CV_8UC4,
+          imageData.data
+        );
+
+        // Préparation de l'image
         let gray = new openCv.Mat();
         let blurred = new openCv.Mat();
         let edges = new openCv.Mat();
@@ -154,6 +162,8 @@
 
         // Détection des contours
         openCv.Canny(blurred, edges, 50, 150);
+
+        // Trouver les contours
         openCv.findContours(
           edges,
           contours,
@@ -162,8 +172,7 @@
           openCv.CHAIN_APPROX_SIMPLE
         );
 
-        // On cherche  le plus grand contour
-        // il faudra ajouter d'autres condition
+        // Chercher le plus grand contour qui pourrait être la carte
         let maxArea = 0;
         let maxContourIndex = -1;
         for (let i = 0; i < contours.size(); i++) {
@@ -182,7 +191,9 @@
           let epsilon = 0.02 * openCv.arcLength(maxContour, true);
           openCv.approxPolyDP(maxContour, approx, epsilon, true);
 
+          // Si le contour a 4 points (rectangle), c'est probablement la carte
           if (approx.rows == 4) {
+            // Dessiner en vert si c'est un rectangle
             openCv.drawContours(
               src,
               contours,
@@ -198,75 +209,22 @@
         openCv.imshow(canvas, src);
 
         // Nettoyage
+        src.delete();
+        gray.delete();
         blurred.delete();
         edges.delete();
         contours.delete();
         hierarchy.delete();
-
-        return gray; // Retourner gray pour les autres analyses
-      }
-
-      async function analyseBrightness(gray) {
-        let meanStdDev = new openCv.Mat();
-        let mean = new openCv.Mat();
-        openCv.meanStdDev(gray, mean, meanStdDev);
-        let brightness = Math.round(mean.data64F[0]);
-        console.log(brightness);
-        brightnessValue.textContent = brightness;
-
-        // Nettoyage
-        mean.delete();
-        meanStdDev.delete();
-      }
-
-      async function analyseVariance(gray) {
-        let laplacian = new openCv.Mat();
-        let mean = new openCv.Mat();
-        let stdDev = new openCv.Mat();
-
-        // Calcul du Laplacien
-        openCv.Laplacian(gray, laplacian, openCv.CV_64F);
-
-        // Calcul correct de la variance avec meanStdDev
-        openCv.meanStdDev(laplacian, mean, stdDev);
-        let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
-        varianceValue.textContent = variance;
-
-        // Nettoyage
-        laplacian.delete();
-        mean.delete();
-        stdDev.delete();
-      }
-
-      async function runAllAnalyses() {
-        if (!openCv) return;
-
-        // Capture et préparation initiale de l'image
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        let src = await openCv.matFromArray(
-          canvas.height,
-          canvas.width,
-          openCv.CV_8UC4,
-          imageData.data
-        );
-
-        // Appel des différentes analyses
-        let gray = await analyzeFrame(src);
-        await analyseBrightness(gray);
-        await analyseVariance(gray);
-
-        // Nettoyage final
-        src.delete();
-        gray.delete();
       }
 
       async function onOpenCvReady() {
         console.log("OpenCV.js is ready.");
         openCv = await cv;
-        setInterval(runAllAnalyses, ANALYSIS_INTERVAL);
+        // Démarrer l'analyse automatique
+        setInterval(analyzeFrame, ANALYSIS_INTERVAL);
       }
 
+      // Ajouter le contrôle de visibilité
       document.getElementById("toggleOverlay").addEventListener("click", () => {
         isOverlayVisible = !isOverlayVisible;
         overlay.style.display = isOverlayVisible ? "block" : "none";
