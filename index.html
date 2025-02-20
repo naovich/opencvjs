@@ -194,26 +194,33 @@
           if (approx.rows == 4) {
             console.log("4 points détectés - Analyse des angles...");
 
-            // Vérification pour l'affichage du contour (tolérance plus large)
-            if (isValidRectangle(approx, ANGLE_TOLERANCE_SHOW)) {
-              openCv.drawContours(
+            // Récupérer les points du quadrilatère
+            let pts = [];
+            for (let i = 0; i < 4; i++) {
+              let x = approx.data32S[i * 2];
+              let y = approx.data32S[i * 2 + 1];
+              pts.push(new openCv.Point(x, y));
+            }
+
+            // Dessiner quatre lignes pour former un quadrilatère
+            for (let i = 0; i < 4; i++) {
+              let start = pts[i];
+              let end = pts[(i + 1) % 4];
+              openCv.line(
                 src,
-                contours,
-                maxContourIndex,
+                start,
+                end,
                 new openCv.Scalar(0, 255, 0, 255),
                 2
               );
+            }
 
-              // Vérification pour prendre la photo (tolérance plus stricte)
-              if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
-                console.log("Rectangle valide détecté !");
-                document.body.style.backgroundColor = "green";
-              } else {
-                console.log("Rectangle détecté mais pas assez précis");
-                document.body.style.backgroundColor = "white";
-              }
+            // Vérification de validité du rectangle selon un angle strict
+            if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
+              console.log("Rectangle valide détecté !");
+              document.body.style.backgroundColor = "green";
             } else {
-              console.log("Les angles ne correspondent pas à un rectangle");
+              console.log("Rectangle détecté mais pas assez précis");
               document.body.style.backgroundColor = "white";
             }
           } else {
