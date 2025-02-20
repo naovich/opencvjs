@@ -73,17 +73,12 @@
             <p>
               Variance (Flou): <span id="varianceValue" class="metric">-</span>
             </p>
-            <small
-              >Plus la valeur est basse, plus l'image est floue. Seuil:
-              100</small
-            >
           </div>
           <div class="metric-row">
             <p>
               Luminosité moyenne:
               <span id="brightnessValue" class="metric">-</span>
             </p>
-            <small>0 = noir, 255 = blanc. Idéal: entre 100 et 200</small>
           </div>
           <div class="metric-row">
             <p>Statut: <span id="result" class="metric"></span></p>
@@ -128,12 +123,10 @@
       overlay.style.left = "50%";
       overlay.style.transform = "translate(-50%, -50%)";
 
-      // Ajout des nouvelles constantes
-      const ANGLE_TOLERANCE = 5; // Tolérance en degrés pour les angles
-      const ANGLE_TOLERANCE_SHOW = 15; // Tolérance en degrés pour les angles
+      const ANGLE_TOLERANCE = 5; // Tolérance en degrés pour les angles pour la prise de photo
+      const ANGLE_TOLERANCE_SHOW = 15; // Tolérance en degrés pour les angles pour afficher le contour
       const ASPECT_RATIO_TARGET = 85.6 / 53.98; // Ratio largeur/hauteur d'une carte d'identité
       const ASPECT_RATIO_TOLERANCE = 0.15; // Tolérance de 15% pour le ratio
-      const MIN_CARD_AREA = 50000; // Surface minimale en pixels pour éviter les faux positifs
 
       // Ajout des constantes pour la comparaison avec le rectangle guide
       const OVERLAP_THRESHOLD = 0.7; // 70% de superposition minimum
@@ -174,6 +167,7 @@
         );
 
         // On cherche le plus grand contour
+
         let maxArea = 0;
         let maxContourIndex = -1;
         for (let i = 0; i < contours.size(); i++) {
@@ -184,6 +178,10 @@
             maxContourIndex = i;
           }
         }
+        /* TODO: faire une fonction qui accepte une surface minimal 
+        par rapport à la surface de l'image, cela va obligé l'utilisateur à rapprocher
+        la carte de l'appareil photo 
+        */
 
         // Dessiner toujours le contour en vert
         if (maxContourIndex >= 0) {
@@ -191,8 +189,6 @@
           let approx = new openCv.Mat();
           let epsilon = 0.02 * openCv.arcLength(maxContour, true);
           openCv.approxPolyDP(maxContour, approx, epsilon, true);
-
-          console.log("Nombre de points détectés:", approx.rows);
 
           // Vérification si c'est un rectangle
           if (approx.rows == 4) {
@@ -208,9 +204,9 @@
                 2
               );
 
-              // Vérification pour le fond vert (tolérance plus stricte)
+              // Vérification pour prendre la photo (tolérance plus stricte)
               if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
-                console.log("Rectangle parfaitement valide détecté !");
+                console.log("Rectangle valide détecté !");
                 document.body.style.backgroundColor = "green";
               } else {
                 console.log("Rectangle détecté mais pas assez précis");
