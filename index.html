@@ -54,9 +54,42 @@
         left: 50%;
         transform: translate(-50%, -50%);
       }
+      .nav-menu {
+        background-color: #333;
+        padding: 15px 0;
+        margin-bottom: 20px;
+      }
+      .nav-menu ul {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+      }
+      .nav-menu a {
+        color: white;
+        text-decoration: none;
+        font-size: 16px;
+        padding: 8px 15px;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+      }
+      .nav-menu a:hover {
+        background-color: #555;
+      }
+      .nav-menu a.active {
+        background-color: #4caf50;
+      }
     </style>
   </head>
   <body>
+    <nav class="nav-menu">
+      <ul>
+        <li><a href="index.html" class="active">Analyse d'image</a></li>
+        <li><a href="init.html">Initialisation</a></li>
+      </ul>
+    </nav>
     <h1>Analyse d'image avec OpenCV.js</h1>
     <div class="container">
       <div class="video-section">
@@ -146,18 +179,30 @@
 
         let gray = new openCv.Mat();
         let blurred = new openCv.Mat();
+        let thresh = new openCv.Mat();
+        let edges1 = new openCv.Mat();
+        let edges2 = new openCv.Mat();
         let edges = new openCv.Mat();
         let contours = new openCv.MatVector();
         let hierarchy = new openCv.Mat();
 
-        // Conversion en niveaux de gris
         openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
-
-        // Réduction du bruit avec un flou gaussien
         openCv.GaussianBlur(gray, blurred, new openCv.Size(5, 5), 0);
 
-        // Détection des contours
-        openCv.Canny(blurred, edges, 50, 150);
+        openCv.adaptiveThreshold(
+          blurred,
+          thresh,
+          255,
+          openCv.ADAPTIVE_THRESH_GAUSSIAN_C,
+          openCv.THRESH_BINARY,
+          11,
+          2
+        );
+
+        openCv.Canny(blurred, edges1, 50, 150);
+        openCv.Canny(thresh, edges2, 50, 150);
+        openCv.bitwise_or(edges1, edges2, edges);
+
         openCv.findContours(
           edges,
           contours,
@@ -165,8 +210,6 @@
           openCv.RETR_EXTERNAL,
           openCv.CHAIN_APPROX_SIMPLE
         );
-
-        // On cherche le plus grand contour
 
         let maxArea = 0;
         let maxContourIndex = -1;
@@ -178,23 +221,16 @@
             maxContourIndex = i;
           }
         }
-        /* TODO: faire une fonction qui accepte une surface minimal 
-        par rapport à la surface de l'image, cela va obligé l'utilisateur à rapprocher
-        la carte de l'appareil photo 
-        */
 
-        // Dessiner toujours le contour en vert
         if (maxContourIndex >= 0) {
           let maxContour = contours.get(maxContourIndex);
           let approx = new openCv.Mat();
           let epsilon = 0.02 * openCv.arcLength(maxContour, true);
           openCv.approxPolyDP(maxContour, approx, epsilon, true);
 
-          // Vérification si c'est un rectangle
           if (approx.rows == 4) {
             console.log("4 points détectés - Analyse des angles...");
 
-            // Récupérer les points du quadrilatère
             let pts = [];
             for (let i = 0; i < 4; i++) {
               let x = approx.data32S[i * 2];
@@ -202,7 +238,6 @@
               pts.push(new openCv.Point(x, y));
             }
 
-            // Dessiner quatre lignes pour former un quadrilatère
             for (let i = 0; i < 4; i++) {
               let start = pts[i];
               let end = pts[(i + 1) % 4];
@@ -215,10 +250,8 @@
               );
             }
 
-            // Vérification de validité du rectangle selon un angle strict
             if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
               console.log("Rectangle valide détecté !");
-              // document.body.style.backgroundColor = "green";
             } else {
               console.log("Rectangle détecté mais pas assez précis");
               document.body.style.backgroundColor = "white";
@@ -233,21 +266,21 @@
           document.body.style.backgroundColor = "white";
         }
 
-        // Après la détection des contours et avant l'affichage
         if (maxContourIndex >= 0) {
           await analyzeCardPosition(contours, maxContourIndex);
         }
 
-        // Afficher le résultat
         openCv.imshow(canvas, src);
 
-        // Nettoyage
         blurred.delete();
+        thresh.delete();
+        edges1.delete();
+        edges2.delete();
         edges.delete();
         contours.delete();
         hierarchy.delete();
 
-        return gray; // Retourner gray pour les autres analyses
+        return gray;
       }
 
       async function analyseBrightness(gray) {
