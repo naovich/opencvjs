@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blur Detection with OpenCV.js</title>
+  </head>
+  <body>
+    <h1>Blur Detection with OpenCV.js</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <button id="capture">Capture</button>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <p id="result"></p>
+
+    <script>
+      let video = document.getElementById("video");
+      let canvas = document.getElementById("canvas");
+      let context = canvas.getContext("2d");
+      let result = document.getElementById("result");
+      let openCv = null;
+
+      // Access the camera
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+        })
+        .catch((err) => {
+          console.error("Error accessing the camera: " + err);
+        });
+
+      document.getElementById("capture").addEventListener("click", async () => {
+        // Draw the video frame to the canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Create a matrix from the image data
+        let src = await openCv.matFromArray(
+          canvas.height,
+          canvas.width,
+          openCv.CV_8UC4,
+          imageData.data
+        );
+
+        // Convert to grayscale
+        let gray = new openCv.Mat();
+        openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY, 0);
+
+        // Compute the Laplacian
+        let laplacian = new openCv.Mat();
+        openCv.Laplacian(gray, laplacian, openCv.CV_64F);
+
+        // Calculate the variance of the Laplacian
+        let mean = new openCv.Mat();
+        let stddev = new openCv.Mat();
+        openCv.meanStdDev(laplacian, mean, stddev);
+        let variance = stddev.data64F[0] * stddev.data64F[0];
+        console.log(variance);
+
+        // Determine if the image is blurry
+        let threshold = 100.0;
+        if (variance < threshold) {
+          result.textContent = "The image is blurry.";
+        } else {
+          result.textContent = "The image is not blurry.";
+        }
+
+        // Clean up
+        src.delete();
+        gray.delete();
+        laplacian.delete();
+        mean.delete();
+        stddev.delete();
+      });
+
+      async function onOpenCvReady() {
+        console.log("OpenCV.js is ready.");
+        openCv = await cv;
+      }
+    </script>
+    <script
+      async
+      src="https://docs.opencv.org/4.11.0/opencv.js"
+      onload="onOpenCvReady();"
+    ></script>
+  </body>
+</html>
