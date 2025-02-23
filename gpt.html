@@ -88,7 +88,6 @@
       <ul>
         <li><a href="index.html" class="active">Analyse d'image</a></li>
         <li><a href="init.html">Initialisation</a></li>
-        <li><a href="face.html">Face recognition</a></li>
       </ul>
     </nav>
     <h1>Analyse d'image avec OpenCV.js</h1>
@@ -174,10 +173,10 @@
         .catch((err) => {
           console.error("Error accessing the camera: " + err);
         });
-
       async function analyzeFrame(src) {
         if (!openCv) return;
 
+        // Initialisation des matrices
         let gray = new openCv.Mat();
         let blurred = new openCv.Mat();
         let thresh = new openCv.Mat();
@@ -187,9 +186,9 @@
         let contours = new openCv.MatVector();
         let hierarchy = new openCv.Mat();
 
+        // Prétraitement : conversion en niveaux de gris, flou, seuillage adaptatif et détection d'arêtes
         openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
         openCv.GaussianBlur(gray, blurred, new openCv.Size(5, 5), 0);
-
         openCv.adaptiveThreshold(
           blurred,
           thresh,
@@ -199,11 +198,11 @@
           11,
           2
         );
-
         openCv.Canny(blurred, edges1, 50, 150);
         openCv.Canny(thresh, edges2, 50, 150);
         openCv.bitwise_or(edges1, edges2, edges);
 
+        // Extraction des contours
         openCv.findContours(
           edges,
           contours,
@@ -212,67 +211,171 @@
           openCv.CHAIN_APPROX_SIMPLE
         );
 
-        let maxArea = 0;
-        let maxContourIndex = -1;
+        // Variables pour sélectionner le meilleur candidat
+        let bestScore = Infinity;
+        let bestQuad = null;
+        const guideRect = {
+          x: video.width / 2 - rectWidth / 2,
+          y: video.height * 0.35 - rectHeight / 2,
+          width: rectWidth,
+          height: rectHeight,
+        };
+        const guideArea = guideRect.width * guideRect.height;
+        const SCORE_THRESHOLD = 0.5; // Seuil à ajuster selon le contexte
+
+        // Parcours de tous les contours détectés
         for (let i = 0; i < contours.size(); i++) {
           let contour = contours.get(i);
-          let area = openCv.contourArea(contour);
-          if (area > maxArea) {
-            maxArea = area;
-            maxContourIndex = i;
+          let approx = new openCv.Mat();
+          let epsilon = 0.02 * openCv.arcLength(contour, true);
+          openCv.approxPolyDP(contour, approx, epsilon, true);
+          if (approx.rows === 4) {
+            // Calcul du rectangle englobant
+            let candidateRect = openCv.boundingRect(approx);
+            let candidateArea = candidateRect.width * candidateRect.height;
+            // Filtrage sur la taille relative par rapport au guide
+            if (
+              candidateArea < 0.5 * guideArea ||
+              candidateArea > 1.5 * guideArea
+            ) {
+              approx.delete();
+              continue;
+            }
+            // Calcul du centre et comparaison avec le centre du guide
+            let candidateCenter = {
+              x: candidateRect.x + candidateRect.width / 2,
+              y: candidateRect.y + candidateRect.height / 2,
+            };
+            let guideCenter = {
+              x: guideRect.x + guideRect.width / 2,
+              y: guideRect.y + guideRect.height / 2,
+            };
+            let centerDistance = Math.sqrt(
+              Math.pow(candidateCenter.x - guideCenter.x, 2) +
+                Math.pow(candidateCenter.y - guideCenter.y, 2)
+            );
+            let diagGuide = Math.sqrt(
+              guideRect.width * guideRect.width +
+                guideRect.height * guideRect.height
+            );
+            let normalizedCenterDistance = centerDistance / diagGuide;
+            // Comparaison de l'aspect avec celui attendu pour une carte d'identité
+            let candidateAspect = candidateRect.width / candidateRect.height;
+            let aspectError = Math.abs(candidateAspect - ASPECT_RATIO_TARGET);
+            // Calcul du taux de superposition entre le candidat et le guide
+            let intersectionArea = calculateIntersectionArea(
+              guideRect,
+              candidateRect
+            );
+            let overlapRatio = intersectionArea / guideArea;
+            let overlapError = 1 - overlapRatio;
+            // Score composite (les coefficients sont ajustables)
+            let score =
+              aspectError * 0.5 +
+              normalizedCenterDistance * 0.3 +
+              overlapError * 0.2;
+
+            if (score < bestScore && score < SCORE_THRESHOLD) {
+              bestScore = score;
+              bestQuad = [];
+              for (let j = 0; j < 4; j++) {
+                let x = approx.data32S[j * 2];
+                let y = approx.data32S[j * 2 + 1];
+                bestQuad.push(new openCv.Point(x, y));
+              }
+            }
           }
+          approx.delete();
         }
 
-        if (maxContourIndex >= 0) {
-          let maxContour = contours.get(maxContourIndex);
-          let approx = new openCv.Mat();
-          let epsilon = 0.02 * openCv.arcLength(maxContour, true);
-          openCv.approxPolyDP(maxContour, approx, epsilon, true);
-
-          if (approx.rows == 4) {
-            console.log("4 points détectés - Analyse des angles...");
-
-            let pts = [];
-            for (let i = 0; i < 4; i++) {
-              let x = approx.data32S[i * 2];
-              let y = approx.data32S[i * 2 + 1];
-              pts.push(new openCv.Point(x, y));
-            }
-
-            for (let i = 0; i < 4; i++) {
-              let start = pts[i];
-              let end = pts[(i + 1) % 4];
-              openCv.line(
-                src,
-                start,
-                end,
-                new openCv.Scalar(0, 255, 0, 255),
-                2
-              );
-            }
-
-            if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
-              console.log("Rectangle valide détecté !");
-            } else {
-              console.log("Rectangle détecté mais pas assez précis");
-              document.body.style.backgroundColor = "white";
-            }
+        // Stabilisation temporelle du quadrilatère
+        if (bestQuad) {
+          if (!analyzeFrame.lastValidQuad) {
+            analyzeFrame.lastValidQuad = bestQuad;
           } else {
-            console.log("Ce n'est pas un quadrilatère");
+            const alpha = 0.8; // Plus proche de 1 pour réduire les variations
+            for (let i = 0; i < 4; i++) {
+              bestQuad[i].x =
+                alpha * bestQuad[i].x +
+                (1 - alpha) * analyzeFrame.lastValidQuad[i].x;
+              bestQuad[i].y =
+                alpha * bestQuad[i].y +
+                (1 - alpha) * analyzeFrame.lastValidQuad[i].y;
+            }
+            analyzeFrame.lastValidQuad = bestQuad;
+          }
+        } else {
+          // Si aucun candidat stable n'est détecté, on garde la dernière valeur
+          bestQuad = analyzeFrame.lastValidQuad;
+        }
+
+        // Tracé du quadrilatère sur l'image source
+        if (bestQuad) {
+          for (let i = 0; i < 4; i++) {
+            let start = bestQuad[i];
+            let end = bestQuad[(i + 1) % 4];
+            openCv.line(src, start, end, new openCv.Scalar(0, 255, 0, 255), 2);
+          }
+          let approx = openCv.matFromArray(4, 1, openCv.CV_32SC2, [
+            bestQuad[0].x,
+            bestQuad[0].y,
+            bestQuad[1].x,
+            bestQuad[1].y,
+            bestQuad[2].x,
+            bestQuad[2].y,
+            bestQuad[3].x,
+            bestQuad[3].y,
+          ]);
+          if (isValidRectangle(approx, ANGLE_TOLERANCE)) {
+            console.log("Carte valide détectée !");
+          } else {
+            console.log("Rectangle détecté mais angles invalides");
             document.body.style.backgroundColor = "white";
           }
           approx.delete();
+
+          // Analyse de la position de la carte par rapport au guide
+          let xs = bestQuad.map((p) => p.x);
+          let ys = bestQuad.map((p) => p.y);
+          let minX = Math.min(...xs);
+          let minY = Math.min(...ys);
+          let maxX = Math.max(...xs);
+          let maxY = Math.max(...ys);
+          let candidateRect = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+          };
+          let interArea = calculateIntersectionArea(guideRect, candidateRect);
+          let detectedArea = candidateRect.width * candidateRect.height;
+          let overlapRatio = interArea / Math.min(guideArea, detectedArea);
+          let sizeDifference = Math.abs(guideArea - detectedArea) / guideArea;
+          if (
+            overlapRatio >= OVERLAP_THRESHOLD &&
+            sizeDifference <= SIZE_DIFFERENCE_THRESHOLD
+          ) {
+            result.textContent = "✅ Carte bien positionnée";
+            result.style.color = "green";
+          } else {
+            let issues = [];
+            if (overlapRatio < OVERLAP_THRESHOLD)
+              issues.push("centrage incorrect");
+            if (sizeDifference > SIZE_DIFFERENCE_THRESHOLD)
+              issues.push("mauvaise distance");
+            result.textContent =
+              "❌ Ajustez la position (" + issues.join(", ") + ")";
+            result.style.color = "red";
+          }
         } else {
-          console.log("Aucun contour significatif détecté");
+          console.log("Aucun contour quadrilatère stable détecté");
           document.body.style.backgroundColor = "white";
         }
 
-        if (maxContourIndex >= 0) {
-          await analyzeCardPosition(contours, maxContourIndex);
-        }
-
+        // Affichage final sur le canvas
         openCv.imshow(canvas, src);
 
+        // Nettoyage des ressources
         blurred.delete();
         thresh.delete();
         edges1.delete();
