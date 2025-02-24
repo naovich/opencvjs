@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Image Analysis with OpenCV.js</title>
+    <title>Détection de visage avec extrapolation de la carte</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -30,21 +30,6 @@
         padding: 10px 20px;
         font-size: 16px;
         cursor: pointer;
-      }
-      .result-info {
-        margin-top: 10px;
-        padding: 15px;
-        background: #f0f0f0;
-        border-radius: 4px;
-      }
-      .metric {
-        font-weight: bold;
-        color: #333;
-      }
-      .metric-row {
-        margin: 10px 0;
-        padding: 5px 0;
-        border-bottom: 1px solid #ddd;
       }
       #overlay-rectangle {
         position: absolute;
@@ -89,12 +74,13 @@
         <li><a href="index.html" class="active">Analyse d'image</a></li>
         <li><a href="init.html">Initialisation</a></li>
         <li><a href="face.html">Face recognition</a></li>
+        <li><a href="faceCard.html">Face et carte</a></li>
         <li>
           <a href="facePlusCardaprox.html">Face et carte avec extrapolation</a>
         </li>
       </ul>
     </nav>
-    <h1>Détection de visage avec OpenCV.js</h1>
+    <h1>Détection de visage et extrapolation de la carte</h1>
     <div class="container">
       <div class="video-section" style="display: none">
         <video id="video" width="640" height="480" autoplay></video>
@@ -117,8 +103,8 @@
       let canvas = document.getElementById("canvas");
       let context = canvas.getContext("2d");
       let openCv = null;
-      let isOverlayVisible = false;
       let faceClassifier = null;
+      let isOverlayVisible = false;
 
       navigator.mediaDevices
         .getUserMedia({ video: true })
@@ -143,50 +129,73 @@
           false,
           false
         );
-        const classifier = new openCv.CascadeClassifier();
+        let classifier = new openCv.CascadeClassifier();
         classifier.load("haarcascade_frontalface_default.xml");
         return classifier;
       }
 
+      // Détection du visage et dessin du rectangle rouge
+      // Retourne un objet contenant le rectangle du visage et la Mat avec le rectangle dessiné
       async function faceDetection() {
-        try {
-          // Capture de l'image courante de la vidéo
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const src = openCv.imread(canvas);
-          const gray = new openCv.Mat();
-          openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let src = openCv.imread(canvas);
+        let gray = new openCv.Mat();
+        openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
-          // Chargement du classifier s'il n'est pas encore disponible
-          if (!faceClassifier) {
-            faceClassifier = await loadCascadeClassifier();
-          }
-
-          // Détection des visages
-          const faces = new openCv.RectVector();
-          //faceClassifier.detectMultiScale(gray, faces, 1.1, 3, 0);
-          faceClassifier.detectMultiScale(gray, faces, 1.3, 7, 0);
-
-          // Encadrement des visages détectés
-          for (let i = 0; i < faces.size(); i++) {
-            const face = faces.get(i);
-            const point1 = new openCv.Point(face.x, face.y);
-            const point2 = new openCv.Point(
-              face.x + face.width,
-              face.y + face.height
-            );
-            openCv.rectangle(src, point1, point2, [255, 0, 0, 255], 2);
-          }
-
-          // Affichage du résultat
-          openCv.imshow(canvas, src);
-
-          // Nettoyage
-          src.delete();
-          gray.delete();
-          faces.delete();
-        } catch (err) {
-          console.error("Erreur dans faceDetection:", err);
+        if (!faceClassifier) {
+          faceClassifier = await loadCascadeClassifier();
         }
+        let faces = new openCv.RectVector();
+        faceClassifier.detectMultiScale(gray, faces, 1.3, 7, 0);
+        let faceRect = null;
+        if (faces.size() > 0) {
+          let face = faces.get(0);
+          faceRect = {
+            x: face.x,
+            y: face.y,
+            width: face.width,
+            height: face.height,
+          };
+          let pt1 = new openCv.Point(face.x, face.y);
+          let pt2 = new openCv.Point(face.x + face.width, face.y + face.height);
+          openCv.rectangle(src, pt1, pt2, [255, 0, 0, 255], 2);
+        }
+        gray.delete();
+        faces.delete();
+        return { faceRect, src };
+      }
+
+      // Extrapolation du rectangle de la carte à partir du rectangle du visage
+      function extrapolateCardRectangle(faceRect) {
+        // On suppose que le visage occupe environ 60 % de la hauteur de la carte.
+        const s = 2.5; // facteur d'échelle (modifiable)
+        let cardHeight = faceRect.height * s;
+        let cardWidth = cardHeight * (85.6 / 53.98); // Ratio ISO 7810 ≃ 1.586
+        let cardX = faceRect.x - faceRect.width * 0.4; // le bord gauche du visage correspond au bord gauche de la carte
+        let faceCenterY = faceRect.y + faceRect.height / 2;
+        let cardY = faceCenterY - cardHeight / 2;
+        return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
+      }
+
+      // Fonction pour tracer un rectangle (ici pour la carte, en orange)
+      function drawRectangle(src, rect, color, thickness) {
+        let pt1 = new openCv.Point(rect.x, rect.y);
+        let pt2 = new openCv.Point(rect.x + rect.width, rect.y + rect.height);
+        openCv.rectangle(src, pt1, pt2, color, thickness);
+      }
+
+      async function processFrame() {
+        // Appel de la détection du visage qui retourne la Mat avec le rectangle rouge déjà dessiné
+        let faceResult = await faceDetection();
+        let faceRect = faceResult.faceRect;
+        let src = faceResult.src;
+        if (faceRect) {
+          // Extrapolation du rectangle de la carte et tracé en orange
+          let cardRect = extrapolateCardRectangle(faceRect);
+          drawRectangle(src, cardRect, [255, 165, 0, 255], 2);
+        }
+        openCv.imshow(canvas, src);
+        src.delete();
       }
 
       async function mainLoop() {
@@ -194,7 +203,7 @@
           requestAnimationFrame(mainLoop);
           return;
         }
-        await faceDetection();
+        await processFrame();
         requestAnimationFrame(mainLoop);
       }
 
@@ -205,9 +214,11 @@
       }
 
       document.getElementById("toggleOverlay").addEventListener("click", () => {
-        isOverlayVisible = !isOverlayVisible;
         const overlay = document.getElementById("overlay-rectangle");
-        overlay.style.display = isOverlayVisible ? "block" : "none";
+        overlay.style.display =
+          overlay.style.display === "none" || overlay.style.display === ""
+            ? "block"
+            : "none";
       });
     </script>
     <script
