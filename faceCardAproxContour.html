@@ -178,19 +178,19 @@
       }
 
       async function contourDetection() {
-        context.drawImage(video, 0, 0, effect.width, effect.height);
-        let src = openCv.imread(canvas);
-        let gray = new openCv.Mat();
-       /* openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
-        let canny = new openCv.Mat();
-        openCv.Canny(gray, canny, 50, 150, 3, false);
-        openCv.cvtColor(canny, src, openCv.COLOR_GRAY2RGBA);
-        
-        canny.delete();*/
-        src.delete();
-        gray.delete();
-
-        return {src};
+          context.drawImage(video, 0, 0, effect.width, effect.height);
+          let src = openCv.imread(canvas);
+          let gray = new openCv.Mat();
+          // Si vous voulez utiliser le traitement commenté, décommentez les lignes ci-dessous
+          openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
+           let canny = new openCv.Mat();
+           openCv.Canny(gray, canny, 50, 150, 3, false);
+           openCv.cvtColor(canny, src, openCv.COLOR_GRAY2RGBA);
+          // canny.delete();
+          
+         // gray.delete();
+          // Ne pas supprimer src avant de le renvoyer
+         return canny;
       }
 
       // Extrapolation du rectangle de la carte à partir du rectangle du visage
@@ -220,14 +220,16 @@
         let contourResult = await contourDetection();
         let faceRect = faceResult.faceRect;
         let src = faceResult.src;
+        let gray = contourResult;
         if (faceRect) {
           // Extrapolation du rectangle de la carte et tracé en orange
           let cardRect = extrapolateCardRectangle(faceRect);
           drawRectangle(src, cardRect, [255, 165, 0, 255], 2);
         }
         openCv.imshow(canvas, src);
-        openCv.imshow(effect, contourResult.src);
+        openCv.imshow(effect, gray);
         src.delete();
+        gray.delete();
       }
 
       async function mainLoop() {
