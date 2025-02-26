@@ -168,12 +168,14 @@
       // Extrapolation du rectangle de la carte à partir du rectangle du visage
       function extrapolateCardRectangle(faceRect) {
         // On suppose que le visage occupe environ 60 % de la hauteur de la carte.
-        const s = 2.5; // facteur d'échelle (modifiable)
+        const s = 3.5; // facteur d'échelle
+        const offsetX = -15; // décalage par rapport au bord gauche du visage
+        const offsetY = -10; // décalage par rapport au centre du visage
         let cardHeight = faceRect.height * s;
         let cardWidth = cardHeight * (85.6 / 53.98); // Ratio ISO 7810 ≃ 1.586
-        let cardX = faceRect.x - faceRect.width * 0.4; // le bord gauche du visage correspond au bord gauche de la carte
+        let cardX = faceRect.x - faceRect.width * 0.4 + offsetX; // le bord gauche du visage correspond au bord gauche de la carte
         let faceCenterY = faceRect.y + faceRect.height / 2;
-        let cardY = faceCenterY - cardHeight / 2;
+        let cardY = faceCenterY - cardHeight / 2 + offsetY;
         return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
       }
 
