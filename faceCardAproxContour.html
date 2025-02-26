@@ -74,10 +74,14 @@
         <li><a href="index.html">Analyse d'image</a></li>
         <li><a href="face.html">Face recognition</a></li>
         <li>
-          <a href="facePlusCardaprox.html" class="active">Face et carte</a>
+          <a href="facePlusCardaprox.html">Face et carte</a>
         </li>
         <li><a href="faceEyesCard.html">Face, carte et eyes</a></li>
-        <li><a href="faceCardAproxContour.html">Face, carte et contour</a></li>
+        <li>
+          <a href="faceCardAproxContour.html" class="active"
+            >Face, carte et contour</a
+          >
+        </li>
       </ul>
     </nav>
     <h1>Détection de visage et extrapolation de la carte</h1>
@@ -89,6 +93,13 @@
           <button id="toggleOverlay">Afficher/Masquer le guide</button>
         </div>
       </div>
+      <div class="result-effect">
+        <canvas
+          id="effect"
+          width="640"
+          height="480"
+          willReadFrequently="true"
+        ></canvas>
       <div class="result-section">
         <canvas
           id="canvas"
@@ -101,6 +112,7 @@
     <script>
       let video = document.getElementById("video");
       let canvas = document.getElementById("canvas");
+      let effect = document.getElementById("effect");
       let context = canvas.getContext("2d");
       let openCv = null;
       let faceClassifier = null;
@@ -165,6 +177,22 @@
         return { faceRect, src };
       }
 
+      async function contourDetection() {
+        context.drawImage(video, 0, 0, effect.width, effect.height);
+        let src = openCv.imread(canvas);
+        let gray = new openCv.Mat();
+       /* openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
+        let canny = new openCv.Mat();
+        openCv.Canny(gray, canny, 50, 150, 3, false);
+        openCv.cvtColor(canny, src, openCv.COLOR_GRAY2RGBA);
+        
+        canny.delete();*/
+        src.delete();
+        gray.delete();
+
+        return {src};
+      }
+
       // Extrapolation du rectangle de la carte à partir du rectangle du visage
       function extrapolateCardRectangle(faceRect) {
         // On suppose que le visage occupe environ 60 % de la hauteur de la carte.
@@ -189,6 +217,7 @@
       async function processFrame() {
         // Appel de la détection du visage qui retourne la Mat avec le rectangle rouge déjà dessiné
         let faceResult = await faceDetection();
+        let contourResult = await contourDetection();
         let faceRect = faceResult.faceRect;
         let src = faceResult.src;
         if (faceRect) {
@@ -197,6 +226,7 @@
           drawRectangle(src, cardRect, [255, 165, 0, 255], 2);
         }
         openCv.imshow(canvas, src);
+        openCv.imshow(effect, contourResult.src);
         src.delete();
       }
 

@@ -74,9 +74,11 @@
         <li><a href="index.html">Analyse d'image</a></li>
         <li><a href="face.html">Face recognition</a></li>
         <li>
-          <a href="facePlusCardaprox.html" class="active">Face et carte</a>
+          <a href="facePlusCardaprox.html">Face et carte</a>
         </li>
-        <li><a href="faceEyesCard.html">Face, carte et eyes</a></li>
+        <li>
+          <a href="faceEyesCard.html" class="active">Face, carte et eyes</a>
+        </li>
         <li><a href="faceCardAproxContour.html">Face, carte et contour</a></li>
       </ul>
     </nav>
@@ -165,6 +167,76 @@
         return { faceRect, src };
       }
 
+      // Fonction pour charger le classificateur Haar pour les yeux
+      async function loadEyeCascadeClassifier() {
+        const response = await fetch("src/classifiers/haarcascade_eye.xml");
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        openCv.FS_createDataFile(
+          "/",
+          "haarcascade_eye.xml",
+          data,
+          true,
+          false,
+          false
+        );
+        let classifier = new openCv.CascadeClassifier();
+        classifier.load("haarcascade_eye.xml");
+        return classifier;
+      }
+
+      // Fonction pour détecter les yeux dans la région du visage
+      // 'src' est la Mat de l'image complète et 'faceRect' est le rectangle (object {x, y, width, height})
+      // qui correspond à la détection du visage.
+      async function eyeDetection(src, faceRect) {
+        // Si aucun visage n'est détecté, on ne fait rien.
+        if (!faceRect) return;
+
+        // Extraire la région d'intérêt (ROI) correspondant au visage
+        let faceROI = src.roi(
+          new openCv.Rect(
+            faceRect.x,
+            faceRect.y,
+            faceRect.width,
+            faceRect.height
+          )
+        );
+        let grayFace = new openCv.Mat();
+        openCv.cvtColor(faceROI, grayFace, openCv.COLOR_RGBA2GRAY);
+
+        // Charger le classificateur pour les yeux (stocké dans une variable globale par exemple)
+        if (!window.eyeClassifier) {
+          window.eyeClassifier = await loadEyeCascadeClassifier();
+        }
+        let eyes = new openCv.RectVector();
+        // Détection des yeux dans la ROI du visage
+        window.eyeClassifier.detectMultiScale(grayFace, eyes, 1.1, 3, 0);
+
+        // Pour chaque œil détecté, tracer un rectangle violet sur l'image source
+        for (let i = 0; i < eyes.size(); i++) {
+          let eye = eyes.get(i);
+          // Convertir les coordonnées relatives à la ROI en coordonnées de l'image complète
+          let eyeRect = new openCv.Rect(
+            faceRect.x + eye.x,
+            faceRect.y + eye.y,
+            eye.width,
+            eye.height
+          );
+          let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
+          let pt2 = new openCv.Point(
+            eyeRect.x + eyeRect.width,
+            eyeRect.y + eyeRect.height
+          );
+          // Utilisation d'une couleur violette (par exemple [238, 130, 238, 255])
+          openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
+        }
+
+        // Nettoyage
+        eyes.delete();
+        grayFace.delete();
+        faceROI.delete();
+      }
+
       // Extrapolation du rectangle de la carte à partir du rectangle du visage
       function extrapolateCardRectangle(faceRect) {
         // On suppose que le visage occupe environ 60 % de la hauteur de la carte.
@@ -192,6 +264,8 @@
         let faceRect = faceResult.faceRect;
         let src = faceResult.src;
         if (faceRect) {
+          await eyeDetection(src, faceRect);
+
           // Extrapolation du rectangle de la carte et tracé en orange
           let cardRect = extrapolateCardRectangle(faceRect);
           drawRectangle(src, cardRect, [255, 165, 0, 255], 2);
