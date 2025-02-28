@@ -18,47 +18,28 @@
         gap: 20px;
         margin: 20px 0;
       }
-      .left-section,
-      .right-section {
+      .video-section {
         flex: 1;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        background-color: #f9f9f9;
+        position: relative;
       }
-      .checkboxes {
-        margin-top: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+      .result-section {
+        flex: 1;
       }
-      .checkboxes label {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-      .right-section {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
+      .controls {
+        margin: 10px 0;
       }
       button {
         padding: 10px 20px;
         font-size: 16px;
         cursor: pointer;
-        border: none;
-        border-radius: 5px;
-        background-color: #4caf50;
-        color: white;
-        transition: background-color 0.3s;
       }
-      button:hover {
-        background-color: #45a049;
-      }
-      #photoCanvas {
-        border: 1px solid #ccc;
-        border-radius: 5px;
+      #overlay-rectangle {
+        position: absolute;
+        border: 2px solid orange;
+        pointer-events: none;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
       }
       .nav-menu {
         background-color: #333;
@@ -87,12 +68,16 @@
       .nav-menu a.active {
         background-color: #4caf50;
       }
-      .metrics {
-        margin-top: 50px;
-        background-color: #f5f5f5;
-        border-radius: 5px;
+      .result-info {
+        margin-top: 10px;
+      }
+      .metric {
+        font-weight: bold;
+        color: #333;
       }
       .metric-row {
+        margin: 10px 0;
+        padding: 5px 0;
         border-bottom: 1px solid #ddd;
       }
       .status-good {
@@ -127,105 +112,94 @@
     </nav>
     <h1>Détection de visage et alignement de la carte</h1>
     <div class="container">
-      <div class="left-section">
+      <div class="video-section">
+        <video
+          id="video"
+          width="640"
+          height="480"
+          autoplay
+          style="display: none"
+        ></video>
+        <div id="overlay-rectangle"></div>
+        <div class="controls">
+          <button id="toggleOverlay">Afficher/Masquer le guide</button>
+          <button id="toggleDebug">Afficher/Masquer infos debug</button>
+          <button id="toggleContourDetection">
+            Désactiver la détection de contour
+          </button>
+        </div>
+      </div>
+      <div class="result-section">
         <canvas
           id="canvas"
           width="640"
           height="480"
           willReadFrequently="true"
         ></canvas>
-        <div class="checkboxes">
-          <label
-            ><input type="checkbox" id="showGuide" checked /> Afficher le
-            guide</label
-          >
-          <label
-            ><input type="checkbox" id="showDebug" /> Afficher les infos
-            debug</label
-          >
-          <label
-            ><input type="checkbox" id="useContourDetection" checked /> Utiliser
-            la détection de contour</label
-          >
-          <label
-            ><input type="checkbox" id="autoCapture" checked /> Prise
-            automatique de photo</label
-          >
-        </div>
-        <div>
-          <div class="metrics">
-            <div class="metric-row">
-              <p>
-                Angle de la carte:
-                <span id="cardAngleValue" class="metric">-</span>
-              </p>
-            </div>
-            <div class="metric-row">
-              <p>
-                Alignement visage-carte:
-                <span id="alignmentValue" class="metric">-</span>
-              </p>
-            </div>
-            <div class="metric-row">
-              <p>
-                Distance caméra-carte:
-                <span id="distanceValue" class="metric">-</span>
-              </p>
-            </div>
-            <div class="metric-row">
-              <p>
-                Luminosité: <span id="brightnessValue" class="metric">-</span>
-              </p>
-            </div>
-            <div class="metric-row">
-              <p>
-                Variance (netteté):
-                <span id="varianceValue" class="metric">-</span>
-              </p>
-            </div>
-            <div class="metric-row">
-              <p>
-                Statut global: <span id="resultStatus" class="metric">-</span>
-              </p>
-            </div>
+        <div class="result-info">
+          <div class="metric-row">
+            <p>
+              Angle de la carte:
+              <span id="cardAngleValue" class="metric">-</span>
+            </p>
+          </div>
+          <div class="metric-row">
+            <p>
+              Alignement visage-carte:
+              <span id="alignmentValue" class="metric">-</span>
+            </p>
+          </div>
+          <div class="metric-row">
+            <p>
+              Distance caméra-carte:
+              <span id="distanceValue" class="metric">-</span>
+            </p>
+          </div>
+          <div class="metric-row">
+            <p>
+              Luminosité: <span id="brightnessValue" class="metric">-</span>
+            </p>
+          </div>
+          <div class="metric-row">
+            <p>
+              Variance (netteté):
+              <span id="varianceValue" class="metric">-</span>
+            </p>
+          </div>
+          <div class="metric-row">
+            <p>
+              Statut global: <span id="resultStatus" class="metric">-</span>
+            </p>
           </div>
         </div>
-      </div>
-      <div class="right-section">
-        <h2>Photo prise</h2>
-        <canvas id="photoCanvas" width="640" height="480"></canvas>
-        <button id="manualCapture">Prendre la photo manuellement</button>
-        <button id="retakePhoto" style="display: none">
-          Reprendre la photo
-        </button>
+        <div id="debug-info" class="debug-info" style="display: none">
+          <h3>Informations de débogage</h3>
+          <div id="contour-info"></div>
+        </div>
       </div>
     </div>
-    <video
-      id="video"
-      width="640"
-      height="480"
-      autoplay
-      style="display: none"
-    ></video>
     <script>
-      // Initialisation
+      // Partie 1 : Initialisation et configuration globale
       let video = document.getElementById("video");
       let canvas = document.getElementById("canvas");
       let context = canvas.getContext("2d");
-      let photoCanvas = document.getElementById("photoCanvas");
-      let photoContext = photoCanvas.getContext("2d");
-
+      let cardAngleValue = document.getElementById("cardAngleValue");
+      let alignmentValue = document.getElementById("alignmentValue");
+      let distanceValue = document.getElementById("distanceValue");
+      let brightnessValue = document.getElementById("brightnessValue");
+      let varianceValue = document.getElementById("varianceValue");
+      let resultStatus = document.getElementById("resultStatus");
       let openCv = null;
       let faceClassifier = null;
-      let showGuide = true;
+      let isOverlayVisible = false;
       let isDebugVisible = false;
-      let useContourDetection = true;
-      let autoCaptureEnabled = true;
-      let photoTaken = false;
+      let useContourDetection = true; // Nouvelle variable pour la détection de contour
+      let debugInfo = document.getElementById("debug-info");
+      let contourInfo = document.getElementById("contour-info");
+
       let lastFaceRect = null;
       let lastCardRect = null;
       let lastCardAngle = 0;
-
       let stabilizationBufferFace = [];
       let stabilizationBufferCard = [];
       let stabilizationBufferAngle = [];
@@ -235,6 +209,7 @@
       let lastCardDetectionTime = 0;
       const DETECTION_TIMEOUT = 1500;
 
+      const ANALYSIS_INTERVAL = 100;
       const VIDEO_WIDTH = 640;
       const VIDEO_HEIGHT = 480;
       const CARD_RATIO = 85.6 / 53.98;
@@ -253,10 +228,15 @@
         height: Math.round(VIDEO_HEIGHT * 0.5),
       };
 
-      // Ajout des constantes pour les seuils de qualité d'image
-      const VARIANCE_MIN = 100; // Seuil minimum pour la netteté
-      const BRIGHTNESS_MIN = 50; // Seuil minimum pour la luminosité
-      const BRIGHTNESS_MAX = 200; // Seuil maximum pour la luminosité
+      const overlay = document.getElementById("overlay-rectangle");
+      const margin = 100;
+      const rectHeight = VIDEO_HEIGHT - margin * 2.5;
+      const rectWidth = rectHeight * CARD_RATIO;
+      overlay.style.width = rectWidth + "px";
+      overlay.style.height = rectHeight + "px";
+      overlay.style.top = "50%";
+      overlay.style.left = "50%";
+      overlay.style.transform = "translate(-50%, -50%)";
 
       navigator.mediaDevices
         .getUserMedia({ video: true })
@@ -267,7 +247,7 @@
           console.error("Erreur lors de l'accès à la caméra: " + err);
         });
 
-      // Fonctions utilitaires communes
+      // Partie 2 : Fonctions utilitaires communes
       function averageRects(rects) {
         if (!rects || rects.length === 0) return null;
         const validRects = rects.filter((rect) => rect !== null);
@@ -336,8 +316,11 @@
           : 0;
       }
 
-      // Détection de visage
+      // Partie 3 : Détection de visage
       async function loadCascadeClassifier() {
+        /* const response = await fetch(
+          "src/classifiers/haarcascade_frontalface_default.xml"
+        ); */
         const response = await fetch(
           "https://docs.opencv.org/4.11.0/haarcascade_frontalface_default.xml"
         );
@@ -442,7 +425,7 @@
         return lastFaceRect;
       }
 
-      // Extrapolation de la position de la carte
+      // Partie 4 : Extrapolation de la position de la carte
       function extrapolateCardRectangle(faceRect) {
         const s = 3.5;
         const offsetX = -15;
@@ -455,10 +438,11 @@
         return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
       }
 
-      // Détection du contour de la carte
+      // Partie 5 : Détection du contour de la carte
       function detectCardContour(src, extrapolatedRect, gray) {
         let { edges, contours } = findCardContours(gray);
         let analysis = analyzeContours(contours, edges, extrapolatedRect);
+        displayDebugInfo(src, edges, analysis);
         stabilizeCardDetection(
           analysis.bestMatchIndex,
           analysis.bestRect,
@@ -507,6 +491,7 @@
         let bestMatchScore = 0;
         let bestRect = null;
         let cardAngle = 0;
+        let allContourInfos = [];
         let horizontalLines = 0;
         let verticalLines = 0;
 
@@ -535,6 +520,13 @@
             let score = overlapScore * 0.7 + ratioScore * 0.3;
             let angle = rotatedRect.angle;
             if (angle < -45) angle = 90 + angle;
+            allContourInfos.push({
+              index: i,
+              area: Math.round(area),
+              aspectRatio: aspectRatio.toFixed(2),
+              angle: angle.toFixed(1),
+              score: score.toFixed(2),
+            });
             let lines = new openCv.Mat();
             openCv.HoughLinesP(edges, lines, 1, Math.PI / 180, 50, 50, 10);
             for (let j = 0; j < lines.rows; j++) {
@@ -587,7 +579,82 @@
           cardAngle,
           isCardHorizontal,
           isImageHorizontal,
+          allContourInfos,
+          horizontalLines,
+          verticalLines,
         };
+      }
+
+      function displayDebugInfo(src, edges, analysis) {
+        if (isDebugVisible) {
+          let debugEdges = new openCv.Mat();
+          edges.copyTo(debugEdges);
+          let debugColor = new openCv.Mat();
+          openCv.cvtColor(debugEdges, debugColor, openCv.COLOR_GRAY2BGR);
+          for (let i = 0; i < debugEdges.rows; i++) {
+            for (let j = 0; j < debugEdges.cols; j++) {
+              if (debugEdges.ucharPtr(i, j)[0] > 0) {
+                let pixel = debugColor.ucharPtr(i, j);
+                pixel[0] = 0;
+                pixel[1] = 255;
+                pixel[2] = 0;
+              }
+            }
+          }
+          const scaleFactor = 0.3;
+          const offsetX = src.cols - debugColor.cols * scaleFactor - 20;
+          const offsetY = 20;
+          for (let i = 0; i < debugColor.rows * scaleFactor; i++) {
+            for (let j = 0; j < debugColor.cols * scaleFactor; j++) {
+              const srcI = Math.floor(i / scaleFactor);
+              const srcJ = Math.floor(j / scaleFactor);
+              if (srcI < debugColor.rows && srcJ < debugColor.cols) {
+                const pixel = debugColor.ucharPtr(srcI, srcJ);
+                const dstI = i + offsetY;
+                const dstJ = j + offsetX;
+                if (dstI < src.rows && dstJ < src.cols) {
+                  const dstPixel = src.ucharPtr(dstI, dstJ);
+                  dstPixel[0] = pixel[0];
+                  dstPixel[1] = pixel[1];
+                  dstPixel[2] = pixel[2];
+                }
+              }
+            }
+          }
+          openCv.putText(
+            src,
+            "Contours",
+            new openCv.Point(offsetX, offsetY - 5),
+            openCv.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            [0, 255, 0, 255],
+            1
+          );
+          debugEdges.delete();
+          debugColor.delete();
+
+          let debugContourInfo =
+            `<p>Contours trouvés: ${analysis.allContourInfos.length}</p>` +
+            `<p>Lignes: H=${analysis.horizontalLines}, V=${analysis.verticalLines}</p>` +
+            `<p>Image horizontale: ${
+              analysis.isImageHorizontal ? "Oui" : "Non"
+            }</p>`;
+          if (analysis.allContourInfos.length > 0) {
+            debugContourInfo +=
+              "<table border='1' style='margin-top: 10px;'><tr><th>Idx</th><th>Aire</th><th>Ratio</th><th>Angle</th><th>Score</th></tr>";
+            analysis.allContourInfos.sort((a, b) => b.score - a.score);
+            for (
+              let i = 0;
+              i < Math.min(5, analysis.allContourInfos.length);
+              i++
+            ) {
+              const c = analysis.allContourInfos[i];
+              debugContourInfo += `<tr><td>${c.index}</td><td>${c.area}</td><td>${c.aspectRatio}</td><td>${c.angle}°</td><td>${c.score}</td></tr>`;
+            }
+            debugContourInfo += "</table>";
+          }
+          contourInfo.innerHTML = debugContourInfo;
+        }
       }
 
       function stabilizeCardDetection(bestMatchIndex, bestRect, cardAngle) {
@@ -677,7 +744,43 @@
         }
       }
 
-      // Vérifications d'alignement et de distance
+      // Partie 6 : Analyses supplémentaires
+      async function analyseBrightness(gray) {
+        let meanStdDev = new openCv.Mat();
+        let mean = new openCv.Mat();
+        openCv.meanStdDev(gray, mean, meanStdDev);
+        let brightness = Math.round(mean.data64F[0]);
+        brightnessValue.textContent = brightness;
+        brightnessValue.className =
+          brightness > 100
+            ? "metric status-good"
+            : brightness > 50
+            ? "metric status-warning"
+            : "metric status-bad";
+        mean.delete();
+        meanStdDev.delete();
+      }
+
+      async function analyseVariance(gray) {
+        let laplacian = new openCv.Mat();
+        let mean = new openCv.Mat();
+        let stdDev = new openCv.Mat();
+        openCv.Laplacian(gray, laplacian, openCv.CV_64F);
+        openCv.meanStdDev(laplacian, mean, stdDev);
+        let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
+        varianceValue.textContent = variance;
+        varianceValue.className =
+          variance > 100
+            ? "metric status-good"
+            : variance > 50
+            ? "metric status-warning"
+            : "metric status-bad";
+        laplacian.delete();
+        mean.delete();
+        stdDev.delete();
+      }
+
+      // Partie 7 : Vérifications d'alignement et de distance
       function checkAlignment(
         faceRect,
         cardRect,
@@ -701,15 +804,13 @@
       }
 
       function checkDistance(cardRect, src) {
-        if (showGuide) {
-          drawRectangle(
-            src,
-            distanceGuideRect,
-            [139, 69, 19, 180],
-            2,
-            "ZONE OPTIMALE"
-          );
-        }
+        drawRectangle(
+          src,
+          distanceGuideRect,
+          [139, 69, 19, 180],
+          2,
+          "ZONE OPTIMALE"
+        );
         if (!cardRect)
           return { correct: false, message: "Distance indéterminée" };
         let intersectionArea = calculateIntersection(
@@ -751,36 +852,8 @@
         }
       }
 
-      // Capture de la photo
-      function capturePhoto() {
-        if (!lastFaceRect) return;
-        let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
-        photoContext.drawImage(
-          canvas,
-          extrapolatedCardRect.x,
-          extrapolatedCardRect.y,
-          extrapolatedCardRect.width,
-          extrapolatedCardRect.height,
-          0,
-          0,
-          photoCanvas.width,
-          photoCanvas.height
-        );
-        photoTaken = true;
-        document.getElementById("retakePhoto").style.display = "block";
-        if (autoCaptureEnabled) {
-          autoCaptureEnabled = false;
-          document.getElementById("autoCapture").checked = false;
-        }
-      }
-
       // Partie 8 : Mise à jour de l'interface utilisateur
-      function updateStatus(
-        cardDetection,
-        alignmentResult,
-        distanceResult,
-        imageQuality
-      ) {
+      function updateStatus(cardDetection, alignmentResult, distanceResult) {
         cardAngleValue.textContent = cardDetection.detected
           ? `${cardDetection.angle.toFixed(1)}°`
           : "Non détecté";
@@ -801,29 +874,14 @@
         distanceValue.className = distanceResult.correct
           ? "metric status-good"
           : "metric status-warning";
-
-        // Vérification de la qualité d'image et des conditions
-        const isImageQualityGood =
-          imageQuality.variance >= VARIANCE_MIN &&
-          imageQuality.brightness >= BRIGHTNESS_MIN &&
-          imageQuality.brightness <= BRIGHTNESS_MAX;
-
-        const isCardDetectionValid = useContourDetection
-          ? cardDetection.detected
-          : true;
-
         if (
-          isCardDetectionValid &&
+          cardDetection.detected &&
           alignmentResult.aligned &&
-          distanceResult.correct &&
-          isImageQualityGood
+          distanceResult.correct
         ) {
           resultStatus.textContent = "✓ Parfait - Prêt pour la capture";
           resultStatus.className = "metric status-good";
-        } else if (!isImageQualityGood) {
-          resultStatus.textContent = "✗ Qualité d'image insuffisante";
-          resultStatus.className = "metric status-warning";
-        } else if (useContourDetection && !cardDetection.detected) {
+        } else if (!cardDetection.detected) {
           resultStatus.textContent = "✗ Carte non détectée";
           resultStatus.className = "metric status-warning";
         } else if (!alignmentResult.aligned) {
@@ -833,30 +891,9 @@
           resultStatus.textContent = "✗ Ajuster la distance";
           resultStatus.className = "metric status-warning";
         }
-
-        // Mise à jour des valeurs de qualité d'image
-        varianceValue.textContent = imageQuality.variance;
-        brightnessValue.textContent = imageQuality.brightness;
-
-        // Ajout de classes de statut pour la qualité d'image
-        if (imageQuality.variance > 100) {
-          varianceValue.className = "metric status-good";
-        } else if (imageQuality.variance > 50) {
-          varianceValue.className = "metric status-warning";
-        } else {
-          varianceValue.className = "metric status-bad";
-        }
-
-        if (imageQuality.brightness > 50 && imageQuality.brightness < 200) {
-          brightnessValue.className = "metric status-good";
-        } else {
-          brightnessValue.className = "metric status-warning";
-        }
-
-        return isImageQualityGood;
       }
 
-      // Boucle principale de traitement
+      // Partie 9 : Boucle principale de traitement
       async function processFrame() {
         try {
           context.drawImage(video, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
@@ -864,8 +901,8 @@
           let gray = new openCv.Mat();
           openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
-          // Ajout de l'analyse de qualité d'image
-          const imageQuality = await analyzeImageQuality(gray);
+          await analyseBrightness(gray);
+          await analyseVariance(gray);
 
           let faceRect = await detectFace(src, gray);
           if (faceRect) {
@@ -903,12 +940,7 @@
               cardDetection.imageIsHorizontal
             );
             let distanceResult = checkDistance(cardDetection.rect, src);
-            const isImageQualityGood = updateStatus(
-              cardDetection,
-              alignmentResult,
-              distanceResult,
-              imageQuality
-            );
+            updateStatus(cardDetection, alignmentResult, distanceResult);
 
             openCv.putText(
               src,
@@ -934,32 +966,25 @@
                 1
               );
             }
-
-            // Modification de la condition de capture automatique dans processFrame
-            if (
-              (useContourDetection ? cardDetection.detected : true) &&
-              (useContourDetection ? alignmentResult.aligned : true) &&
-              distanceResult.correct &&
-              imageQuality.variance >= VARIANCE_MIN &&
-              imageQuality.brightness >= BRIGHTNESS_MIN &&
-              imageQuality.brightness <= BRIGHTNESS_MAX &&
-              autoCaptureEnabled &&
-              !photoTaken
-            ) {
-              capturePhoto();
-            }
           } else {
-            if (showGuide) {
-              drawRectangle(
-                src,
-                distanceGuideRect,
-                [139, 69, 19, 180],
-                2,
-                "ZONE OPTIMALE"
-              );
+            drawRectangle(
+              src,
+              distanceGuideRect,
+              [139, 69, 19, 180],
+              2,
+              "ZONE OPTIMALE"
+            );
+            if (
+              Date.now() - lastFaceDetectionTime > DETECTION_TIMEOUT &&
+              Date.now() - lastCardDetectionTime > DETECTION_TIMEOUT
+            ) {
+              cardAngleValue.textContent = "-";
+              alignmentValue.textContent = "-";
+              distanceValue.textContent = "-";
+              resultStatus.textContent = "Visage non détecté";
+              resultStatus.className = "metric status-warning";
             }
           }
-
           openCv.imshow(canvas, src);
           src.delete();
           gray.delete();
@@ -968,70 +993,42 @@
         }
       }
 
-      // Événements et interactions utilisateur
-      document.getElementById("showGuide").addEventListener("change", (e) => {
-        showGuide = e.target.checked;
+      async function mainLoop() {
+        if (!openCv) {
+          requestAnimationFrame(mainLoop);
+          return;
+        }
+        await processFrame();
+        requestAnimationFrame(mainLoop);
+      }
+
+      // Partie 10 : Événements et interactions utilisateur
+      document.getElementById("toggleOverlay").addEventListener("click", () => {
+        overlay.style.display =
+          overlay.style.display === "none" || overlay.style.display === ""
+            ? "block"
+            : "none";
       });
-      document.getElementById("showDebug").addEventListener("change", (e) => {
-        isDebugVisible = e.target.checked;
+
+      document.getElementById("toggleDebug").addEventListener("click", () => {
+        isDebugVisible = !isDebugVisible;
+        debugInfo.style.display = isDebugVisible ? "block" : "none";
       });
+
       document
-        .getElementById("useContourDetection")
-        .addEventListener("change", (e) => {
-          useContourDetection = e.target.checked;
+        .getElementById("toggleContourDetection")
+        .addEventListener("click", () => {
+          useContourDetection = !useContourDetection;
+          document.getElementById("toggleContourDetection").textContent =
+            useContourDetection
+              ? "Désactiver la détection de contour"
+              : "Activer la détection de contour";
         });
-      document.getElementById("autoCapture").addEventListener("change", (e) => {
-        autoCaptureEnabled = e.target.checked;
-      });
-      document
-        .getElementById("manualCapture")
-        .addEventListener("click", capturePhoto);
-      document.getElementById("retakePhoto").addEventListener("click", () => {
-        photoTaken = false;
-        autoCaptureEnabled = true;
-        document.getElementById("autoCapture").checked = true;
-        document.getElementById("retakePhoto").style.display = "none";
-        photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-      });
 
       async function onOpenCvReady() {
         console.log("OpenCV.js est prêt.");
         openCv = await cv;
-        setInterval(processFrame, 100);
-      }
-
-      async function analyzeImageQuality(gray) {
-        try {
-          // Calcul de la netteté (variance)
-          let laplacian = new openCv.Mat();
-          openCv.Laplacian(gray, laplacian, openCv.CV_64F);
-          let meanStdDev = new openCv.Mat();
-          let mean = new openCv.Mat();
-          openCv.meanStdDev(laplacian, mean, meanStdDev);
-          let variance = Math.round(
-            meanStdDev.data64F[0] * meanStdDev.data64F[0]
-          );
-          varianceValue.textContent = variance;
-
-          // Calcul de la luminosité moyenne
-          let brightnessMean = new openCv.Mat();
-          let brightnessStdDev = new openCv.Mat();
-          openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
-          let brightness = Math.round(brightnessMean.data64F[0]);
-          brightnessValue.textContent = brightness;
-
-          // Nettoyage
-          laplacian.delete();
-          meanStdDev.delete();
-          mean.delete();
-          brightnessMean.delete();
-          brightnessStdDev.delete();
-
-          return { variance, brightness };
-        } catch (err) {
-          console.error("Erreur dans analyzeImageQuality:", err);
-          return { variance: 0, brightness: 0 };
-        }
+        requestAnimationFrame(mainLoop);
       }
     </script>
     <script
