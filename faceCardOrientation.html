@@ -144,8 +144,8 @@
             debug</label
           >
           <label
-            ><input type="checkbox" id="useContourDetection" checked /> Utiliser
-            la détection de contour</label
+            ><input type="checkbox" id="useContourDetection" /> Utiliser la
+            détection de contour</label
           >
           <label
             ><input type="checkbox" id="autoCapture" checked /> Prise
@@ -193,21 +193,8 @@
       </div>
       <div class="right-section">
         <h2>Photo prise</h2>
-        <div
-          style="
-            width: 640px;
-            height: 480px;
-            overflow: hidden;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-          "
-        >
-          <canvas
-            id="photoCanvas"
-            width="1280"
-            height="960"
-            style="width: 100%; height: 100%; object-fit: contain"
-          ></canvas>
+        <div id="photoContainer">
+          <canvas id="photoCanvas" width="1280" height="960"></canvas>
         </div>
         <button id="manualCapture">Prendre la photo manuellement</button>
         <button id="retakePhoto" style="display: none">
@@ -217,8 +204,8 @@
     </div>
     <video
       id="video"
-      width="640"
-      height="480"
+      width="${CAPTURE_WIDTH}"
+      height="${CAPTURE_HEIGHT}"
       autoplay
       style="display: none"
     ></video>
@@ -237,7 +224,7 @@
       let faceClassifier = null;
       let showGuide = true;
       let isDebugVisible = false;
-      let useContourDetection = true;
+      let useContourDetection = false;
       let autoCaptureEnabled = true;
       let photoTaken = false;
       let lastFaceRect = null;
@@ -276,8 +263,21 @@
       const BRIGHTNESS_MIN = 50; // Seuil minimum pour la luminosité
       const BRIGHTNESS_MAX = 200; // Seuil maximum pour la luminosité
 
+      // Configuration des résolutions
+      const CAPTURE_WIDTH = 1280; // Résolution de capture vidéo
+      const CAPTURE_HEIGHT = 960; // Résolution de capture vidéo
+      const PROCESSING_WIDTH = 640; // Résolution pour le traitement
+      const PROCESSING_HEIGHT = 480; // Résolution pour le traitement
+      const OUTPUT_WIDTH = 1280; // Résolution de la photo finale
+      const OUTPUT_HEIGHT = 960; // Résolution de la photo finale
+
       navigator.mediaDevices
-        .getUserMedia({ video: true })
+        .getUserMedia({
+          video: {
+            width: { ideal: CAPTURE_WIDTH },
+            height: { ideal: CAPTURE_HEIGHT },
+          },
+        })
         .then((stream) => {
           video.srcObject = stream;
         })
@@ -466,7 +466,7 @@
       }
 
       function extrapolateCardRectangle(faceRect) {
-        const s = 3.5;
+        const s = 3.2;
         const offsetX = -15;
         const offsetY = -10;
         let cardHeight = faceRect.height * s;
@@ -835,45 +835,38 @@
         }
 
         try {
+          // Calculer un facteur d'échelle entre la résolution de traitement et la résolution de capture
+          const scaleX = CAPTURE_WIDTH / PROCESSING_WIDTH;
+          const scaleY = CAPTURE_HEIGHT / PROCESSING_HEIGHT;
+
+          // Adapter le rectangle de la carte à la résolution plus haute
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
-
-          // Créer un canvas temporaire à haute résolution
-          let tempCanvas = document.createElement("canvas");
-          let tempContext = tempCanvas.getContext("2d");
-
-          // Facteur de mise à l'échelle pour améliorer la résolution
-          const scaleFactor = 2;
-          tempCanvas.width = extrapolatedCardRect.width * scaleFactor;
-          tempCanvas.height = extrapolatedCardRect.height * scaleFactor;
+          let highResCardRect = {
+            x: Math.round(extrapolatedCardRect.x * scaleX),
+            y: Math.round(extrapolatedCardRect.y * scaleY),
+            width: Math.round(extrapolatedCardRect.width * scaleX),
+            height: Math.round(extrapolatedCardRect.height * scaleY),
+          };
 
           if (video.readyState === 4) {
-            // Dessiner d'abord sur un canvas temporaire en haute résolution
-            tempContext.drawImage(
+            // Capturer directement depuis la vidéo haute résolution
+            photoContext.clearRect(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+            photoContext.drawImage(
               video,
-              extrapolatedCardRect.x,
-              extrapolatedCardRect.y,
-              extrapolatedCardRect.width,
-              extrapolatedCardRect.height,
+              highResCardRect.x,
+              highResCardRect.y,
+              highResCardRect.width,
+              highResCardRect.height,
               0,
               0,
-              tempCanvas.width,
-              tempCanvas.height
+              OUTPUT_WIDTH,
+              OUTPUT_HEIGHT
             );
 
-            // Appliquer un léger filtre d'amélioration si nécessaire
-            tempContext.filter = "contrast(1.1) brightness(1.05)";
-
-            // Dessiner sur le photoCanvas final avec une meilleure qualité
+            // Appliquer des filtres d'amélioration
+            photoContext.filter = "contrast(1.1) brightness(1.05)";
             photoContext.imageSmoothingEnabled = true;
             photoContext.imageSmoothingQuality = "high";
-            photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-            photoContext.drawImage(
-              tempCanvas,
-              0,
-              0,
-              photoCanvas.width,
-              photoCanvas.height
-            );
 
             photoTaken = true;
             document.getElementById("retakePhoto").style.display = "block";
@@ -884,8 +877,8 @@
 
             console.log("Photo capturée en haute résolution");
           } else {
-            // Fallback avec la même approche d'amélioration de qualité
-            tempContext.drawImage(
+            // Solution de secours utilisant le canvas à basse résolution
+            photoContext.drawImage(
               canvas,
               extrapolatedCardRect.x,
               extrapolatedCardRect.y,
@@ -893,19 +886,8 @@
               extrapolatedCardRect.height,
               0,
               0,
-              tempCanvas.width,
-              tempCanvas.height
-            );
-
-            photoContext.imageSmoothingEnabled = true;
-            photoContext.imageSmoothingQuality = "high";
-            photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-            photoContext.drawImage(
-              tempCanvas,
-              0,
-              0,
-              photoCanvas.width,
-              photoCanvas.height
+              OUTPUT_WIDTH,
+              OUTPUT_HEIGHT
             );
 
             photoTaken = true;
@@ -914,13 +896,7 @@
         } catch (err) {
           console.error("Erreur lors de la capture haute résolution:", err);
           // Solution de secours
-          photoContext.drawImage(
-            canvas,
-            0,
-            0,
-            photoCanvas.width,
-            photoCanvas.height
-          );
+          photoContext.drawImage(canvas, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
           photoTaken = true;
           document.getElementById("retakePhoto").style.display = "block";
         }
@@ -1014,7 +990,9 @@
       // Boucle principale de traitement
       async function processFrame() {
         try {
-          context.drawImage(video, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+          // Redimensionner la vidéo haute résolution vers le canvas de traitement
+          context.drawImage(video, 0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
+
           let src = openCv.imread(canvas);
           let gray = new openCv.Mat();
           openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
@@ -1154,6 +1132,22 @@
         openCv = await cv;
         setInterval(processFrame, 100);
       }
+
+      const photoContainer = document.getElementById("photoContainer");
+      photoContainer.style.width = "640px";
+      photoContainer.style.height = "480px";
+      photoContainer.style.overflow = "hidden";
+      photoContainer.style.border = "1px solid #ccc";
+      photoContainer.style.borderRadius = "5px";
+
+      photoCanvas.style.width = "100%";
+      photoCanvas.style.height = "100%";
+      photoCanvas.style.objectFit = "contain";
+
+      photoCanvas.width = OUTPUT_WIDTH;
+      photoCanvas.height = OUTPUT_HEIGHT;
+      canvas.width = PROCESSING_WIDTH;
+      canvas.height = PROCESSING_HEIGHT;
     </script>
     <script
       async
