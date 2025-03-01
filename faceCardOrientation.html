@@ -208,7 +208,10 @@
       style="display: none"
     ></video>
     <script>
-      // Initialisation
+      /* -------------------------------------------
+      Partie 1 : Initialisation et configuration globale
+      -------------------------------------------- */
+
       let video = document.getElementById("video");
       let canvas = document.getElementById("canvas");
       let context = canvas.getContext("2d");
@@ -267,7 +270,10 @@
           console.error("Erreur lors de l'accès à la caméra: " + err);
         });
 
-      // Fonctions utilitaires communes
+      /* -------------------------------------------
+      Partie 2 : Fonctions utilitaires communes
+      -------------------------------------------- */
+
       function averageRects(rects) {
         if (!rects || rects.length === 0) return null;
         const validRects = rects.filter((rect) => rect !== null);
@@ -336,10 +342,12 @@
           : 0;
       }
 
-      // Détection de visage
+      /* ----------------------------------------à
+           Partie 3 : Détection de visage
+          ---------------------------------------- */
       async function loadCascadeClassifier() {
         const response = await fetch(
-          "https://docs.opencv.org/4.11.0/haarcascade_frontalface_default.xml"
+          "src/classifiers/haarcascade_frontalface_default.xml"
         );
         const buffer = await response.arrayBuffer();
         const data = new Uint8Array(buffer);
@@ -442,7 +450,6 @@
         return lastFaceRect;
       }
 
-      // Extrapolation de la position de la carte
       function extrapolateCardRectangle(faceRect) {
         const s = 3.5;
         const offsetX = -15;
@@ -455,7 +462,10 @@
         return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
       }
 
-      // Détection du contour de la carte
+      /* -------------------------------------------
+      Partie 4 : Détection du contour de la carte
+      -------------------------------------------- */
+
       function detectCardContour(src, extrapolatedRect, gray) {
         let { edges, contours } = findCardContours(gray);
         let analysis = analyzeContours(contours, edges, extrapolatedRect);
@@ -751,7 +761,58 @@
         }
       }
 
-      // Capture de la photo
+      /* -------------------------------------------
+      Partie 5 : Analyse de la qualité d'image
+      -------------------------------------------- */
+
+      async function analyzeImageQuality(gray) {
+        try {
+          // Calcul de la luminosité (utilisant la méthode de analyseBrightness)
+          let brightnessMean = new openCv.Mat();
+          let brightnessStdDev = new openCv.Mat();
+          openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
+          let brightness = Math.round(brightnessMean.data64F[0]);
+          brightnessValue.textContent = brightness;
+          brightnessValue.className =
+            brightness > 100
+              ? "metric status-good"
+              : brightness > 50
+              ? "metric status-warning"
+              : "metric status-bad";
+
+          // Calcul de la netteté (utilisant la méthode de analyseVariance)
+          let laplacian = new openCv.Mat();
+          openCv.Laplacian(gray, laplacian, openCv.CV_64F);
+          let mean = new openCv.Mat();
+          let stdDev = new openCv.Mat();
+          openCv.meanStdDev(laplacian, mean, stdDev);
+          let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
+          varianceValue.textContent = variance;
+          varianceValue.className =
+            variance > 100
+              ? "metric status-good"
+              : variance > 50
+              ? "metric status-warning"
+              : "metric status-bad";
+
+          // Nettoyage
+          brightnessMean.delete();
+          brightnessStdDev.delete();
+          laplacian.delete();
+          mean.delete();
+          stdDev.delete();
+
+          return { variance, brightness };
+        } catch (err) {
+          console.error("Erreur dans analyzeImageQuality:", err);
+          return { variance: 0, brightness: 0 };
+        }
+      }
+
+      /* -------------------------------------------
+           Partie 6 : Capture de la photo
+      -------------------------------------------- */
+
       function capturePhoto() {
         if (!lastFaceRect) return;
         let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
@@ -774,7 +835,10 @@
         }
       }
 
-      // Partie 8 : Mise à jour de l'interface utilisateur
+      /* -------------------------------------------------
+           Partie 7 : Mise à jour de l'interface utilisateur
+      ---------------------------------------------------- */
+
       function updateStatus(
         cardDetection,
         alignmentResult,
@@ -998,40 +1062,6 @@
         console.log("OpenCV.js est prêt.");
         openCv = await cv;
         setInterval(processFrame, 100);
-      }
-
-      async function analyzeImageQuality(gray) {
-        try {
-          // Calcul de la netteté (variance)
-          let laplacian = new openCv.Mat();
-          openCv.Laplacian(gray, laplacian, openCv.CV_64F);
-          let meanStdDev = new openCv.Mat();
-          let mean = new openCv.Mat();
-          openCv.meanStdDev(laplacian, mean, meanStdDev);
-          let variance = Math.round(
-            meanStdDev.data64F[0] * meanStdDev.data64F[0]
-          );
-          varianceValue.textContent = variance;
-
-          // Calcul de la luminosité moyenne
-          let brightnessMean = new openCv.Mat();
-          let brightnessStdDev = new openCv.Mat();
-          openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
-          let brightness = Math.round(brightnessMean.data64F[0]);
-          brightnessValue.textContent = brightness;
-
-          // Nettoyage
-          laplacian.delete();
-          meanStdDev.delete();
-          mean.delete();
-          brightnessMean.delete();
-          brightnessStdDev.delete();
-
-          return { variance, brightness };
-        } catch (err) {
-          console.error("Erreur dans analyzeImageQuality:", err);
-          return { variance: 0, brightness: 0 };
-        }
       }
     </script>
     <script
