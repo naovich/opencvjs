@@ -193,6 +193,12 @@
                 Statut global: <span id="resultStatus" class="metric">-</span>
               </p>
             </div>
+            <div class="metric-row">
+              <p>
+                Alignement des yeux:
+                <span id="eyesAlignmentValue" class="metric">-</span>
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -275,6 +281,9 @@
       const PROCESSING_HEIGHT = 480; // Résolution pour le traitement
       const OUTPUT_WIDTH = 1280; // Résolution de la photo finale
       const OUTPUT_HEIGHT = 960; // Résolution de la photo finale
+
+      // Ajouter une constante pour le seuil d'alignement des yeux
+      const EYES_ALIGNMENT_THRESHOLD = 3; // Tolérance de 3 degrés pour l'alignement des yeux
 
       navigator.mediaDevices
         .getUserMedia({
@@ -507,52 +516,151 @@
       // 'src' est la Mat de l'image complète et 'faceRect' est le rectangle (object {x, y, width, height})
       // qui correspond à la détection du visage.
       async function eyeDetection(src, faceRect) {
-        // Si aucun visage n'est détecté, on ne fait rien.
-        if (!faceRect) return;
+        try {
+          // Si aucun visage n'est détecté, on ne fait rien.
+          if (!faceRect) return { angle: null, eyeRects: [] };
 
-        // Extraire la région d'intérêt (ROI) correspondant au visage
-        let faceROI = src.roi(
-          new openCv.Rect(
-            faceRect.x,
-            faceRect.y,
-            faceRect.width,
-            faceRect.height
-          )
-        );
-        let grayFace = new openCv.Mat();
-        openCv.cvtColor(faceROI, grayFace, openCv.COLOR_RGBA2GRAY);
-
-        // Charger le classificateur pour les yeux (stocké dans une variable globale par exemple)
-        if (!window.eyeClassifier) {
-          window.eyeClassifier = await loadEyeCascadeClassifier();
-        }
-        let eyes = new openCv.RectVector();
-        // Détection des yeux dans la ROI du visage
-        window.eyeClassifier.detectMultiScale(grayFace, eyes, 1.1, 3, 0);
-
-        // Pour chaque œil détecté, tracer un rectangle violet sur l'image source
-        for (let i = 0; i < eyes.size(); i++) {
-          let eye = eyes.get(i);
-          // Convertir les coordonnées relatives à la ROI en coordonnées de l'image complète
-          let eyeRect = new openCv.Rect(
-            faceRect.x + eye.x,
-            faceRect.y + eye.y,
-            eye.width,
-            eye.height
+          // Extraire la région d'intérêt (ROI) correspondant au visage
+          let faceROI = src.roi(
+            new openCv.Rect(
+              faceRect.x,
+              faceRect.y,
+              faceRect.width,
+              faceRect.height
+            )
           );
-          let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
-          let pt2 = new openCv.Point(
-            eyeRect.x + eyeRect.width,
-            eyeRect.y + eyeRect.height
-          );
-          // Utilisation d'une couleur violette (par exemple [238, 130, 238, 255])
-          openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
-        }
+          let grayFace = new openCv.Mat();
+          openCv.cvtColor(faceROI, grayFace, openCv.COLOR_RGBA2GRAY);
 
-        // Nettoyage
-        eyes.delete();
-        grayFace.delete();
-        faceROI.delete();
+          // Charger le classificateur pour les yeux
+          if (!window.eyeClassifier) {
+            window.eyeClassifier = await loadEyeCascadeClassifier();
+          }
+
+          let eyes = new openCv.RectVector();
+          // Paramètres plus restrictifs pour la détection des yeux
+          window.eyeClassifier.detectMultiScale(
+            grayFace,
+            eyes,
+            1.1,
+            5,
+            0,
+            new openCv.Size(20, 20)
+          );
+
+          // Convertir tous les yeux détectés en tableau pour pouvoir les trier
+          let eyesArray = [];
+          for (let i = 0; i < eyes.size(); i++) {
+            let eye = eyes.get(i);
+            eyesArray.push({
+              x: eye.x,
+              y: eye.y,
+              width: eye.width,
+              height: eye.height,
+              // Critère de tri : position Y (priorité) puis taille (secondaire)
+              score: eye.y * 1000 + eye.width * eye.height,
+            });
+          }
+
+          // Trier par position verticale (yeux les plus hauts en premier) et taille
+          eyesArray.sort((a, b) => a.score - b.score);
+
+          // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage
+          eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
+
+          // Garder les deux premiers yeux seulement (s'ils existent)
+          let selectedEyes = eyesArray.slice(0, 2);
+
+          // Si on a deux yeux, les trier de gauche à droite
+          if (selectedEyes.length === 2) {
+            selectedEyes.sort((a, b) => a.x - b.x);
+
+            // Calculer l'angle entre les deux yeux
+            let leftEye = selectedEyes[0];
+            let rightEye = selectedEyes[1];
+
+            let leftEyeCenter = {
+              x: faceRect.x + leftEye.x + leftEye.width / 2,
+              y: faceRect.y + leftEye.y + leftEye.height / 2,
+            };
+
+            let rightEyeCenter = {
+              x: faceRect.x + rightEye.x + rightEye.width / 2,
+              y: faceRect.y + rightEye.y + rightEye.height / 2,
+            };
+
+            // Calculer l'angle de la ligne entre les deux yeux (en degrés)
+            let eyesAngle =
+              Math.atan2(
+                rightEyeCenter.y - leftEyeCenter.y,
+                rightEyeCenter.x - leftEyeCenter.x
+              ) *
+              (180 / Math.PI);
+
+            // Pour chaque œil sélectionné, tracer un rectangle sur l'image
+            selectedEyes.forEach((eye) => {
+              let eyeRect = new openCv.Rect(
+                faceRect.x + eye.x,
+                faceRect.y + eye.y,
+                eye.width,
+                eye.height
+              );
+              let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
+              let pt2 = new openCv.Point(
+                eyeRect.x + eyeRect.width,
+                eyeRect.y + eyeRect.height
+              );
+              // Utilisation d'une couleur violette
+              openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
+            });
+
+            // Dessiner une ligne entre les deux yeux
+            openCv.line(
+              src,
+              new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
+              new openCv.Point(rightEyeCenter.x, rightEyeCenter.y),
+              [0, 255, 255, 255], // Jaune
+              2
+            );
+
+            // Mettre à jour la métrique d'alignement des yeux
+            document.getElementById(
+              "eyesAlignmentValue"
+            ).textContent = `${eyesAngle.toFixed(1)}°`;
+
+            // Définir la classe de statut
+            if (Math.abs(eyesAngle) < EYES_ALIGNMENT_THRESHOLD) {
+              document.getElementById("eyesAlignmentValue").className =
+                "metric status-good";
+            } else {
+              document.getElementById("eyesAlignmentValue").className =
+                "metric status-warning";
+            }
+
+            // Nettoyage
+            eyes.delete();
+            grayFace.delete();
+            faceROI.delete();
+
+            return { angle: eyesAngle, eyeRects: selectedEyes };
+          } else {
+            // Si on n'a pas trouvé exactement 2 yeux
+            document.getElementById("eyesAlignmentValue").textContent =
+              "Non détecté";
+            document.getElementById("eyesAlignmentValue").className =
+              "metric status-warning";
+
+            // Nettoyage
+            eyes.delete();
+            grayFace.delete();
+            faceROI.delete();
+
+            return { angle: null, eyeRects: [] };
+          }
+        } catch (err) {
+          console.error("Erreur dans eyeDetection:", err);
+          return { angle: null, eyeRects: [] };
+        }
       }
 
       /* -------------------------------------------
@@ -1081,8 +1189,13 @@
           let faceRect = await detectFace(src, gray);
           if (faceRect) {
             // Détection des yeux si l'option est activée
+            let eyesData = { angle: null, eyeRects: [] };
             if (showEyes) {
-              await eyeDetection(src, faceRect);
+              eyesData = await eyeDetection(src, faceRect);
+            } else {
+              document.getElementById("eyesAlignmentValue").textContent = "-";
+              document.getElementById("eyesAlignmentValue").className =
+                "metric";
             }
 
             let extrapolatedCardRect = extrapolateCardRectangle(faceRect);
@@ -1151,7 +1264,7 @@
               );
             }
 
-            // Modification de la condition de capture automatique dans processFrame
+            // Modifier la condition de capture automatique dans processFrame
             if (
               (useContourDetection ? cardDetection.detected : true) &&
               (useContourDetection ? alignmentResult.aligned : true) &&
@@ -1159,6 +1272,9 @@
               imageQuality.variance >= VARIANCE_MIN &&
               imageQuality.brightness >= BRIGHTNESS_MIN &&
               imageQuality.brightness <= BRIGHTNESS_MAX &&
+              (!showEyes ||
+                (eyesData.angle !== null &&
+                  Math.abs(eyesData.angle) < EYES_ALIGNMENT_THRESHOLD)) &&
               autoCaptureEnabled &&
               !photoTaken
             ) {
