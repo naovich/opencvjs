@@ -193,7 +193,22 @@
       </div>
       <div class="right-section">
         <h2>Photo prise</h2>
-        <canvas id="photoCanvas" width="640" height="480"></canvas>
+        <div
+          style="
+            width: 640px;
+            height: 480px;
+            overflow: hidden;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+          "
+        >
+          <canvas
+            id="photoCanvas"
+            width="1280"
+            height="960"
+            style="width: 100%; height: 100%; object-fit: contain"
+          ></canvas>
+        </div>
         <button id="manualCapture">Prendre la photo manuellement</button>
         <button id="retakePhoto" style="display: none">
           Reprendre la photo
@@ -814,27 +829,100 @@
       -------------------------------------------- */
 
       function capturePhoto() {
-        if (!lastFaceRect) return;
-        let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
+        if (!lastFaceRect) {
+          console.log("Capture impossible : aucun visage détecté");
+          return;
+        }
 
-        // Dessiner l'image brute de la vidéo sur le photoCanvas au lieu de l'image du canvas
-        photoContext.drawImage(
-          video, // Utiliser video au lieu de canvas
-          extrapolatedCardRect.x,
-          extrapolatedCardRect.y,
-          extrapolatedCardRect.width,
-          extrapolatedCardRect.height,
-          0,
-          0,
-          photoCanvas.width,
-          photoCanvas.height
-        );
+        try {
+          let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
 
-        photoTaken = true;
-        document.getElementById("retakePhoto").style.display = "block";
-        if (autoCaptureEnabled) {
-          autoCaptureEnabled = false;
-          document.getElementById("autoCapture").checked = false;
+          // Créer un canvas temporaire à haute résolution
+          let tempCanvas = document.createElement("canvas");
+          let tempContext = tempCanvas.getContext("2d");
+
+          // Facteur de mise à l'échelle pour améliorer la résolution
+          const scaleFactor = 2;
+          tempCanvas.width = extrapolatedCardRect.width * scaleFactor;
+          tempCanvas.height = extrapolatedCardRect.height * scaleFactor;
+
+          if (video.readyState === 4) {
+            // Dessiner d'abord sur un canvas temporaire en haute résolution
+            tempContext.drawImage(
+              video,
+              extrapolatedCardRect.x,
+              extrapolatedCardRect.y,
+              extrapolatedCardRect.width,
+              extrapolatedCardRect.height,
+              0,
+              0,
+              tempCanvas.width,
+              tempCanvas.height
+            );
+
+            // Appliquer un léger filtre d'amélioration si nécessaire
+            tempContext.filter = "contrast(1.1) brightness(1.05)";
+
+            // Dessiner sur le photoCanvas final avec une meilleure qualité
+            photoContext.imageSmoothingEnabled = true;
+            photoContext.imageSmoothingQuality = "high";
+            photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+            photoContext.drawImage(
+              tempCanvas,
+              0,
+              0,
+              photoCanvas.width,
+              photoCanvas.height
+            );
+
+            photoTaken = true;
+            document.getElementById("retakePhoto").style.display = "block";
+            if (autoCaptureEnabled) {
+              autoCaptureEnabled = false;
+              document.getElementById("autoCapture").checked = false;
+            }
+
+            console.log("Photo capturée en haute résolution");
+          } else {
+            // Fallback avec la même approche d'amélioration de qualité
+            tempContext.drawImage(
+              canvas,
+              extrapolatedCardRect.x,
+              extrapolatedCardRect.y,
+              extrapolatedCardRect.width,
+              extrapolatedCardRect.height,
+              0,
+              0,
+              tempCanvas.width,
+              tempCanvas.height
+            );
+
+            photoContext.imageSmoothingEnabled = true;
+            photoContext.imageSmoothingQuality = "high";
+            photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+            photoContext.drawImage(
+              tempCanvas,
+              0,
+              0,
+              photoCanvas.width,
+              photoCanvas.height
+            );
+
+            photoTaken = true;
+            document.getElementById("retakePhoto").style.display = "block";
+          }
+        } catch (err) {
+          console.error("Erreur lors de la capture haute résolution:", err);
+          // Solution de secours
+          photoContext.drawImage(
+            canvas,
+            0,
+            0,
+            photoCanvas.width,
+            photoCanvas.height
+          );
+          photoTaken = true;
+          document.getElementById("retakePhoto").style.display = "block";
         }
       }
 
