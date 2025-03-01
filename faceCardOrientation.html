@@ -46,6 +46,7 @@
       button {
         padding: 10px 20px;
         font-size: 16px;
+
         cursor: pointer;
         border: none;
         border-radius: 5px;
@@ -146,6 +147,10 @@
           <label
             ><input type="checkbox" id="useContourDetection" /> Utiliser la
             détection de contour</label
+          >
+          <label
+            ><input type="checkbox" id="showEyes" /> Afficher la détection des
+            yeux</label
           >
           <label
             ><input type="checkbox" id="autoCapture" checked /> Prise
@@ -477,8 +482,81 @@
         return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
       }
 
+      /*-----------------------------------------
+                  Partie 4 : Détection des yeux
+        ---------------------------------------- */
+
+      async function loadEyeCascadeClassifier() {
+        const response = await fetch("src/classifiers/haarcascade_eye.xml");
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        openCv.FS_createDataFile(
+          "/",
+          "haarcascade_eye.xml",
+          data,
+          true,
+          false,
+          false
+        );
+        let classifier = new openCv.CascadeClassifier();
+        classifier.load("haarcascade_eye.xml");
+        return classifier;
+      }
+
+      // Fonction pour détecter les yeux dans la région du visage
+      // 'src' est la Mat de l'image complète et 'faceRect' est le rectangle (object {x, y, width, height})
+      // qui correspond à la détection du visage.
+      async function eyeDetection(src, faceRect) {
+        // Si aucun visage n'est détecté, on ne fait rien.
+        if (!faceRect) return;
+
+        // Extraire la région d'intérêt (ROI) correspondant au visage
+        let faceROI = src.roi(
+          new openCv.Rect(
+            faceRect.x,
+            faceRect.y,
+            faceRect.width,
+            faceRect.height
+          )
+        );
+        let grayFace = new openCv.Mat();
+        openCv.cvtColor(faceROI, grayFace, openCv.COLOR_RGBA2GRAY);
+
+        // Charger le classificateur pour les yeux (stocké dans une variable globale par exemple)
+        if (!window.eyeClassifier) {
+          window.eyeClassifier = await loadEyeCascadeClassifier();
+        }
+        let eyes = new openCv.RectVector();
+        // Détection des yeux dans la ROI du visage
+        window.eyeClassifier.detectMultiScale(grayFace, eyes, 1.1, 3, 0);
+
+        // Pour chaque œil détecté, tracer un rectangle violet sur l'image source
+        for (let i = 0; i < eyes.size(); i++) {
+          let eye = eyes.get(i);
+          // Convertir les coordonnées relatives à la ROI en coordonnées de l'image complète
+          let eyeRect = new openCv.Rect(
+            faceRect.x + eye.x,
+            faceRect.y + eye.y,
+            eye.width,
+            eye.height
+          );
+          let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
+          let pt2 = new openCv.Point(
+            eyeRect.x + eyeRect.width,
+            eyeRect.y + eyeRect.height
+          );
+          // Utilisation d'une couleur violette (par exemple [238, 130, 238, 255])
+          openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
+        }
+
+        // Nettoyage
+        eyes.delete();
+        grayFace.delete();
+        faceROI.delete();
+      }
+
       /* -------------------------------------------
-      Partie 4 : Détection du contour de la carte
+      Partie 5 : Détection du contour de la carte
       -------------------------------------------- */
 
       function detectCardContour(src, extrapolatedRect, gray) {
@@ -777,7 +855,7 @@
       }
 
       /* -------------------------------------------
-      Partie 5 : Analyse de la qualité d'image
+      Partie 6 : Analyse de la qualité d'image
       -------------------------------------------- */
 
       async function analyzeImageQuality(gray) {
@@ -825,7 +903,7 @@
       }
 
       /* -------------------------------------------
-           Partie 6 : Capture de la photo
+      Partie 7 : Capture de la photo
       -------------------------------------------- */
 
       function capturePhoto() {
@@ -903,7 +981,7 @@
       }
 
       /* -------------------------------------------------
-           Partie 7 : Mise à jour de l'interface utilisateur
+      Partie 8 : Mise à jour de l'interface utilisateur
       ---------------------------------------------------- */
 
       function updateStatus(
@@ -1002,6 +1080,11 @@
 
           let faceRect = await detectFace(src, gray);
           if (faceRect) {
+            // Détection des yeux si l'option est activée
+            if (showEyes) {
+              await eyeDetection(src, faceRect);
+            }
+
             let extrapolatedCardRect = extrapolateCardRectangle(faceRect);
             drawRectangle(
               src,
@@ -1125,6 +1208,9 @@
         document.getElementById("autoCapture").checked = true;
         document.getElementById("retakePhoto").style.display = "none";
         photoContext.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+      });
+      document.getElementById("showEyes").addEventListener("change", (e) => {
+        showEyes = e.target.checked;
       });
 
       async function onOpenCvReady() {
