@@ -816,8 +816,10 @@
       function capturePhoto() {
         if (!lastFaceRect) return;
         let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
+
+        // Dessiner l'image brute de la vidéo sur le photoCanvas au lieu de l'image du canvas
         photoContext.drawImage(
-          canvas,
+          video, // Utiliser video au lieu de canvas
           extrapolatedCardRect.x,
           extrapolatedCardRect.y,
           extrapolatedCardRect.width,
@@ -827,6 +829,7 @@
           photoCanvas.width,
           photoCanvas.height
         );
+
         photoTaken = true;
         document.getElementById("retakePhoto").style.display = "block";
         if (autoCaptureEnabled) {
