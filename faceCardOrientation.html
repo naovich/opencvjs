@@ -269,10 +269,10 @@
         height: Math.round(VIDEO_HEIGHT * 0.5),
       };
 
-      // Ajout des constantes pour les seuils de qualité d'image
-      const VARIANCE_MIN = 100; // Seuil minimum pour la netteté
-      const BRIGHTNESS_MIN = 50; // Seuil minimum pour la luminosité
-      const BRIGHTNESS_MAX = 200; // Seuil maximum pour la luminosité
+      // onstantes pour qualité d'image
+      const VARIANCE_MIN = 100;
+      const BRIGHTNESS_MIN = 50;
+      const BRIGHTNESS_MAX = 200;
 
       // Configuration des résolutions
       const CAPTURE_WIDTH = 1280; // Résolution de capture vidéo
@@ -282,8 +282,8 @@
       const OUTPUT_WIDTH = 1280; // Résolution de la photo finale
       const OUTPUT_HEIGHT = 960; // Résolution de la photo finale
 
-      // Ajouter une constante pour le seuil d'alignement des yeux
-      const EYES_ALIGNMENT_THRESHOLD = 3; // Tolérance de 3 degrés pour l'alignement des yeux
+      //  le seuil d'alignement des yeux
+      const EYES_ALIGNMENT_THRESHOLD = 3;
 
       navigator.mediaDevices
         .getUserMedia({
@@ -512,15 +512,10 @@
         return classifier;
       }
 
-      // Fonction pour détecter les yeux dans la région du visage
-      // 'src' est la Mat de l'image complète et 'faceRect' est le rectangle (object {x, y, width, height})
-      // qui correspond à la détection du visage.
       async function eyeDetection(src, faceRect) {
         try {
-          // Si aucun visage n'est détecté, on ne fait rien.
           if (!faceRect) return { angle: null, eyeRects: [] };
 
-          // Extraire la région d'intérêt (ROI) correspondant au visage
           let faceROI = src.roi(
             new openCv.Rect(
               faceRect.x,
@@ -538,7 +533,6 @@
           }
 
           let eyes = new openCv.RectVector();
-          // Paramètres plus restrictifs pour la détection des yeux
           window.eyeClassifier.detectMultiScale(
             grayFace,
             eyes,
@@ -548,7 +542,6 @@
             new openCv.Size(20, 20)
           );
 
-          // Convertir tous les yeux détectés en tableau pour pouvoir les trier
           let eyesArray = [];
           for (let i = 0; i < eyes.size(); i++) {
             let eye = eyes.get(i);
@@ -557,7 +550,7 @@
               y: eye.y,
               width: eye.width,
               height: eye.height,
-              // Critère de tri : position Y (priorité) puis taille (secondaire)
+              // Critère de tri : on tri par position Y (priorité) puis taille (secondaire)
               score: eye.y * 1000 + eye.width * eye.height,
             });
           }
@@ -565,10 +558,10 @@
           // Trier par position verticale (yeux les plus hauts en premier) et taille
           eyesArray.sort((a, b) => a.score - b.score);
 
-          // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage
+          // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage, c'est pour éliminé par exemple la bouche, car des fois il peut y a voir une mauvaise interprétation
           eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
 
-          // Garder les deux premiers yeux seulement (s'ils existent)
+          // Garder les deux premiers yeux seulement (on fait pour s'assurer de n'avoir que 2 yeux)
           let selectedEyes = eyesArray.slice(0, 2);
 
           // Si on a deux yeux, les trier de gauche à droite
@@ -610,25 +603,21 @@
                 eyeRect.x + eyeRect.width,
                 eyeRect.y + eyeRect.height
               );
-              // Utilisation d'une couleur violette
               openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
             });
 
-            // Dessiner une ligne entre les deux yeux
             openCv.line(
               src,
               new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
               new openCv.Point(rightEyeCenter.x, rightEyeCenter.y),
-              [0, 255, 255, 255], // Jaune
+              [0, 255, 255, 255],
               2
             );
 
-            // Mettre à jour la métrique d'alignement des yeux
             document.getElementById(
               "eyesAlignmentValue"
             ).textContent = `${eyesAngle.toFixed(1)}°`;
 
-            // Définir la classe de statut
             if (Math.abs(eyesAngle) < EYES_ALIGNMENT_THRESHOLD) {
               document.getElementById("eyesAlignmentValue").className =
                 "metric status-good";
@@ -637,7 +626,6 @@
                 "metric status-warning";
             }
 
-            // Nettoyage
             eyes.delete();
             grayFace.delete();
             faceROI.delete();
@@ -650,7 +638,6 @@
             document.getElementById("eyesAlignmentValue").className =
               "metric status-warning";
 
-            // Nettoyage
             eyes.delete();
             grayFace.delete();
             faceROI.delete();
@@ -968,7 +955,6 @@
 
       async function analyzeImageQuality(gray) {
         try {
-          // Calcul de la luminosité (utilisant la méthode de analyseBrightness)
           let brightnessMean = new openCv.Mat();
           let brightnessStdDev = new openCv.Mat();
           openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
@@ -981,7 +967,6 @@
               ? "metric status-warning"
               : "metric status-bad";
 
-          // Calcul de la netteté (utilisant la méthode de analyseVariance)
           let laplacian = new openCv.Mat();
           openCv.Laplacian(gray, laplacian, openCv.CV_64F);
           let mean = new openCv.Mat();
@@ -996,7 +981,6 @@
               ? "metric status-warning"
               : "metric status-bad";
 
-          // Nettoyage
           brightnessMean.delete();
           brightnessStdDev.delete();
           laplacian.delete();
@@ -1029,7 +1013,7 @@
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
 
           // Ajuster la position verticale pour corriger le décalage vers le bas
-          // Déplacer le rectangle vers le haut de 5% de sa hauteur
+          // Déplacer le rectangle vers le haut de 2.3% de sa hauteur
           //TODO refacto
           extrapolatedCardRect.y -= Math.round(
             extrapolatedCardRect.height * 0.23
@@ -1159,11 +1143,9 @@
           resultStatus.className = "metric status-warning";
         }
 
-        // Mise à jour des valeurs de qualité d'image
         varianceValue.textContent = imageQuality.variance;
         brightnessValue.textContent = imageQuality.brightness;
 
-        // Ajout de classes de statut pour la qualité d'image
         if (imageQuality.variance > 100) {
           varianceValue.className = "metric status-good";
         } else if (imageQuality.variance > 50) {
@@ -1181,7 +1163,6 @@
         return isImageQualityGood;
       }
 
-      // Boucle principale de traitement
       async function processFrame() {
         try {
           // Redimensionner la vidéo haute résolution vers le canvas de traitement
@@ -1191,7 +1172,6 @@
           let gray = new openCv.Mat();
           openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
-          // Ajout de l'analyse de qualité d'image
           const imageQuality = await analyzeImageQuality(gray);
 
           let faceRect = await detectFace(src, gray);
@@ -1308,7 +1288,6 @@
         }
       }
 
-      // Événements et interactions utilisateur
       document.getElementById("showGuide").addEventListener("change", (e) => {
         showGuide = e.target.checked;
       });
