@@ -1027,6 +1027,14 @@
 
           // Adapter le rectangle de la carte à la résolution plus haute
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
+
+          // Ajuster la position verticale pour corriger le décalage vers le bas
+          // Déplacer le rectangle vers le haut de 5% de sa hauteur
+          //TODO refacto
+          extrapolatedCardRect.y -= Math.round(
+            extrapolatedCardRect.height * 0.23
+          );
+
           let highResCardRect = {
             x: Math.round(extrapolatedCardRect.x * scaleX),
             y: Math.round(extrapolatedCardRect.y * scaleY),
