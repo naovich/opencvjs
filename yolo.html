@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Détection YOLO en temps réel</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  </head>
+  <body>
+    <h1>Détection de carte d'identité</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <div id="info"></div>
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const context = canvas.getContext("2d");
+      const infoElement = document.getElementById("info");
+
+      // Accéder à la webcam
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+          };
+        })
+        .catch((err) => {
+          console.error("Erreur d'accès à la webcam: ", err);
+        });
+
+      // Charger le modèle COCO-SSD (plus fiable que YOLO pour TFJS)
+      async function loadModel() {
+        infoElement.textContent = "Chargement du modèle...";
+        const model = await cocoSsd.load();
+        infoElement.textContent = "Modèle chargé! Analyse en cours...";
+        return model;
+      }
+
+      // Fonction de détection
+      async function detectFrame(model) {
+        // Prédiction avec le modèle
+        const predictions = await model.detect(video);
+
+        // Dessiner l'image de la caméra sur le canvas
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Variables pour le suivi de cartes potentielles
+        let cardFound = false;
+
+        // Dessiner les boîtes
+        predictions.forEach((prediction) => {
+          // Filtrer les objets qui pourraient ressembler à des cartes
+          // (livres, cellphones, etc peuvent ressembler à des cartes d'identité)
+          const potentialCardObjects = [
+            "book",
+            "cell phone",
+            "remote",
+            "keyboard",
+            "laptop",
+          ];
+
+          if (
+            prediction.score > 0.5 &&
+            (potentialCardObjects.includes(prediction.class) ||
+              prediction.class === "person")
+          ) {
+            const [x, y, width, height] = prediction.bbox;
+
+            // Dessiner le rectangle
+            context.strokeStyle = "#00FFFF";
+            context.lineWidth = 4;
+            context.strokeRect(x, y, width, height);
+
+            // Afficher le texte avec la classe et le score
+            context.fillStyle = "#00FFFF";
+            context.font = "18px Arial";
+            context.fillText(
+              `${prediction.class}: ${Math.round(prediction.score * 100)}%`,
+              x,
+              y > 20 ? y - 5 : y + 20
+            );
+
+            // Marquer qu'une carte potentielle a été trouvée
+            if (potentialCardObjects.includes(prediction.class)) {
+              cardFound = true;
+            }
+          }
+        });
+
+        // Afficher un message si aucune carte n'est détectée
+        if (!cardFound && predictions.length > 0) {
+          infoElement.textContent =
+            "Aucun objet ressemblant à une carte détecté. Essayez d'ajuster l'angle ou l'éclairage.";
+        } else if (predictions.length === 0) {
+          infoElement.textContent =
+            "Aucun objet détecté. Placez une carte devant la caméra.";
+        } else {
+          infoElement.textContent = "Analyse en cours...";
+        }
+
+        // Continuer la détection
+        requestAnimationFrame(() => detectFrame(model));
+      }
+
+      // Initialiser
+      video.onloadeddata = async () => {
+        const model = await loadModel();
+        detectFrame(model);
+      };
+    </script>
+  </body>
+</html>
