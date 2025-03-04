@@ -1,0 +1,140 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection"></script>
+  </head>
+  <body>
+    <video id="webcam" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+      async function setupWebcam() {
+        const video = document.getElementById("webcam");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        video.srcObject = stream;
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            resolve(video);
+          };
+        });
+      }
+
+      async function loadAndRunDetection() {
+        const video = await setupWebcam();
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const objectModel = await cocoSsd.load();
+        const faceModel = await faceDetection.createDetector(
+          faceDetection.SupportedModels.MediaPipeFaceDetector,
+          { runtime: "tfjs" }
+        );
+
+        async function detectFrame() {
+          const faces = await faceModel.estimateFaces(video);
+          const objects = await objectModel.detect(video);
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          let idPhotoBox = null;
+
+          faces.forEach((face) => {
+            const { xMin, yMin, width, height } = face.box;
+            const x = xMin;
+            const y = yMin;
+
+            if (width > 20 && width < 100 && height > 20 && height < 100) {
+              idPhotoBox = { x, y, width, height };
+
+              ctx.beginPath();
+              ctx.rect(x, y, width, height);
+              ctx.lineWidth = 2;
+              ctx.strokeStyle = "blue";
+              ctx.stroke();
+              ctx.fillStyle = "blue";
+              ctx.fillText("Photo ID", x, y > 10 ? y - 5 : y + 15);
+            }
+          });
+
+          if (idPhotoBox) {
+            const cardWidth = idPhotoBox.width * 2.5;
+            const cardHeight = cardWidth / 1.585;
+            const cardX = idPhotoBox.x - (cardWidth - idPhotoBox.width) / 2;
+            const cardY = idPhotoBox.y - idPhotoBox.height * 0.5;
+
+            const adjustedCardX = Math.max(
+              0,
+              Math.min(cardX, canvas.width - cardWidth)
+            );
+            const adjustedCardY = Math.max(
+              0,
+              Math.min(cardY, canvas.height - cardHeight)
+            );
+
+            ctx.beginPath();
+            ctx.rect(adjustedCardX, adjustedCardY, cardWidth, cardHeight);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "red";
+            ctx.stroke();
+            ctx.fillStyle = "red";
+            ctx.fillText(
+              "Carte ID",
+              adjustedCardX,
+              adjustedCardY > 10 ? adjustedCardY - 5 : adjustedCardY + 15
+            );
+
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = "gray";
+            ctx.fillRect(0, 0, canvas.width, adjustedCardY);
+            ctx.fillRect(
+              0,
+              adjustedCardY + cardHeight,
+              canvas.width,
+              canvas.height - adjustedCardY - cardHeight
+            );
+            ctx.fillRect(0, adjustedCardY, adjustedCardX, cardHeight);
+            ctx.fillRect(
+              adjustedCardX + cardWidth,
+              adjustedCardY,
+              canvas.width - adjustedCardX - cardWidth,
+              cardHeight
+            );
+            ctx.globalAlpha = 1.0;
+          } else {
+            objects.forEach((obj) => {
+              if (
+                obj.class === "book" ||
+                obj.class === "cell phone" ||
+                obj.score > 0.6
+              ) {
+                const [x, y, width, height] = obj.bbox;
+                ctx.beginPath();
+                ctx.rect(x, y, width, height);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "red";
+                ctx.stroke();
+                ctx.fillText(
+                  `${obj.class} (${Math.round(obj.score * 100)}%)`,
+                  x,
+                  y > 10 ? y - 5 : y + 15
+                );
+              }
+            });
+          }
+
+          requestAnimationFrame(detectFrame);
+        }
+
+        detectFrame();
+      }
+
+      window.onload = () => {
+        loadAndRunDetection().catch(console.error);
+      };
+    </script>
+  </body>
+</html>

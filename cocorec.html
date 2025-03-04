@@ -1,0 +1,74 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  </head>
+  <body>
+    <video id="webcam" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+      // Configuration initiale de la webcam
+      async function setupWebcam() {
+        const video = document.getElementById("webcam");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        video.srcObject = stream;
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            resolve(video);
+          };
+        });
+      }
+
+      // Charger le modèle et détecter
+      async function loadAndRunDetection() {
+        const video = await setupWebcam();
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        // Charger le modèle COCO-SSD
+        const model = await cocoSsd.load();
+
+        async function detectFrame() {
+          // Détection d'objets dans la frame
+          const predictions = await model.detect(video);
+
+          // Dessiner l'image originale
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Dessiner un rectangle pour chaque objet détecté
+          predictions.forEach((prediction) => {
+            const [x, y, width, height] = prediction.bbox;
+
+            // Filtre minimal pour éviter les petites détections
+            if (width > 20 && height > 20) {
+              ctx.beginPath();
+              ctx.rect(x, y, width, height);
+              ctx.lineWidth = 2;
+              ctx.strokeStyle = "red";
+              ctx.stroke();
+              ctx.fillStyle = "red";
+              ctx.fillText(
+                `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+                x,
+                y > 10 ? y - 5 : y + 15
+              );
+            }
+          });
+
+          requestAnimationFrame(detectFrame);
+        }
+
+        detectFrame();
+      }
+
+      // Démarrer l'application
+      window.onload = () => {
+        loadAndRunDetection().catch(console.error);
+      };
+    </script>
+  </body>
+</html>
