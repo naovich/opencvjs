@@ -38,12 +38,16 @@ const SIZE_DIFFERENCE_THRESHOLD = 0.2;
 const DISTANCE_MIN = 100000;
 const DISTANCE_MAX = 300000;
 const CONFIDENCE_THRESHOLD = 0.6;
+const GUIDE_RECT_FACTOR_WIDTH = 0.7;
+const GUIDE_RECT_FACTOR_HEIGHT = 0.6;
 
 const distanceGuideRect = {
-  x: Math.round(VIDEO_WIDTH / 2 - (VIDEO_WIDTH * 0.6) / 2),
-  y: Math.round(VIDEO_HEIGHT / 2 - (VIDEO_HEIGHT * 0.5) / 2),
-  width: Math.round(VIDEO_WIDTH * 0.6),
-  height: Math.round(VIDEO_HEIGHT * 0.5),
+  x: Math.round(VIDEO_WIDTH / 2 - (VIDEO_WIDTH * GUIDE_RECT_FACTOR_WIDTH) / 2),
+  y: Math.round(
+    VIDEO_HEIGHT / 2 - (VIDEO_HEIGHT * GUIDE_RECT_FACTOR_HEIGHT) / 2
+  ),
+  width: Math.round(VIDEO_WIDTH * GUIDE_RECT_FACTOR_WIDTH),
+  height: Math.round(VIDEO_HEIGHT * GUIDE_RECT_FACTOR_HEIGHT),
 };
 
 // onstantes pour qualité d'image
