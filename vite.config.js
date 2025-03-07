@@ -11,7 +11,7 @@ export default defineConfig({
         },
         {
           src: "src/classifiers/**/*",
-          dest: "classifiers",
+          dest: "src/classifiers",
         },
       ],
     }),
