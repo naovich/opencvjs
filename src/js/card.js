@@ -48,7 +48,6 @@ const distanceGuideRect = {
   ),
   width: Math.round(VIDEO_WIDTH * GUIDE_RECT_FACTOR_WIDTH),
   height: Math.round(VIDEO_HEIGHT * GUIDE_RECT_FACTOR_HEIGHT),
-
 };
 
 // onstantes pour qualité d'image
@@ -72,6 +71,7 @@ navigator.mediaDevices
     video: {
       width: { ideal: CAPTURE_WIDTH },
       height: { ideal: CAPTURE_HEIGHT },
+      facingMode: { ideal: "environment" },
     },
   })
   .then((stream) => {

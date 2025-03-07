@@ -71,6 +71,7 @@ navigator.mediaDevices
     video: {
       width: { ideal: CAPTURE_WIDTH },
       height: { ideal: CAPTURE_HEIGHT },
+      facingMode: { ideal: "environment" },
     },
   })
   .then((stream) => {
