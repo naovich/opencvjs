@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analyse d'images multiples</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f0f2f5;
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+      }
+      .upload-section {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .upload-section input[type="file"] {
+        margin: 10px;
+        padding: 5px;
+      }
+      .upload-section button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: white;
+        transition: background-color 0.3s;
+      }
+      .upload-section button:hover {
+        background-color: #45a049;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .image-section {
+        display: flex;
+        gap: 20px;
+        padding: 15px;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .left-section,
+      .right-section {
+        flex: 1;
+        padding: 10px;
+      }
+      .left-section canvas {
+        width: 100%;
+        height: auto;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+      }
+      .right-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .metrics {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+      }
+      .metric-row {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #ddd;
+        padding: 8px 0;
+      }
+      .status-good {
+        color: #4caf50;
+        font-weight: bold;
+      }
+      .status-warning {
+        color: #ff9800;
+        font-weight: bold;
+      }
+      .status-bad {
+        color: #f44336;
+        font-weight: bold;
+      }
+      .nav-menu {
+        background-color: #333;
+        padding: 15px 0;
+        margin-bottom: 20px;
+      }
+      .nav-menu ul {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+      }
+      .nav-menu a {
+        color: white;
+        text-decoration: none;
+        font-size: 16px;
+        padding: 8px 15px;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+      }
+      .nav-menu a:hover {
+        background-color: #555;
+      }
+      .nav-menu a.active {
+        background-color: #4caf50;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="nav-menu">
+      <ul>
+        <li><a href="index.html">Prise de photo</a></li>
+        <li><a href="analyse.html" class="active">Analyse d'image</a></li>
+      </ul>
+    </nav>
+    <h1>Analyse d'images multiples</h1>
+    <div class="upload-section">
+      <input type="file" id="imageInput" multiple accept="image/*" />
+      <label>
+        <input type="checkbox" id="showFaceRect" checked /> Afficher le
+        rectangle du visage
+      </label>
+      <label>
+        <input type="checkbox" id="showEyesRect" checked /> Afficher les
+        rectangles des yeux
+      </label>
+      <button id="analyzeButton">Analyser les images</button>
+    </div>
+    <div id="resultsContainer" class="container"></div>
+    <script
+      async
+      src="https://docs.opencv.org/4.11.0/opencv.js"
+      onload="onOpenCvReady();"
+    ></script>
+    <script>
+      // Constantes pour l'analyse
+      const PROCESSING_WIDTH = 640;
+      const PROCESSING_HEIGHT = 480;
+      const VARIANCE_MIN = 100;
+      const BRIGHTNESS_MIN = 50;
+      const BRIGHTNESS_MAX = 300;
+      const EYES_ALIGNMENT_THRESHOLD = 5;
+
+      // Chargement du classificateur de visage
+      async function loadCascadeClassifier() {
+        const response = await fetch(
+          "src/classifiers/haarcascade_frontalface_default.xml"
+        );
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        cv.FS_createDataFile(
+          "/",
+          "haarcascade_frontalface_default.xml",
+          data,
+          true,
+          false,
+          false
+        );
+        let classifier = new cv.CascadeClassifier();
+        classifier.load("haarcascade_frontalface_default.xml");
+        return classifier;
+      }
+
+      // Chargement du classificateur des yeux
+      async function loadEyeCascadeClassifier() {
+        const response = await fetch("src/classifiers/haarcascade_eye.xml");
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        cv.FS_createDataFile(
+          "/",
+          "haarcascade_eye.xml",
+          data,
+          true,
+          false,
+          false
+        );
+        let classifier = new cv.CascadeClassifier();
+        classifier.load("haarcascade_eye.xml");
+        return classifier;
+      }
+
+      // Détection du visage
+      async function detectFace(src, gray) {
+        if (!window.faceClassifier) {
+          window.faceClassifier = await loadCascadeClassifier();
+        }
+        let faces = new cv.RectVector();
+        window.faceClassifier.detectMultiScale(gray, faces, 1.3, 7, 0);
+        if (faces.size() > 0) {
+          let bestFace = faces.get(0);
+          return {
+            x: bestFace.x,
+            y: bestFace.y,
+            width: bestFace.width,
+            height: bestFace.height,
+          };
+        }
+        return null;
+      }
+
+      // Détection des yeux
+      async function eyeDetection(src, faceRect) {
+        if (!faceRect) return { angle: null, eyeRects: [] };
+        let faceROI = src.roi(
+          new cv.Rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height)
+        );
+        let grayFace = new cv.Mat();
+        cv.cvtColor(faceROI, grayFace, cv.COLOR_RGBA2GRAY);
+        if (!window.eyeClassifier) {
+          window.eyeClassifier = await loadEyeCascadeClassifier();
+        }
+        let eyes = new cv.RectVector();
+        window.eyeClassifier.detectMultiScale(
+          grayFace,
+          eyes,
+          1.1,
+          5,
+          0,
+          new cv.Size(20, 20)
+        );
+        let eyesArray = [];
+        for (let i = 0; i < eyes.size(); i++) {
+          let eye = eyes.get(i);
+          eyesArray.push({
+            x: eye.x,
+            y: eye.y,
+            width: eye.width,
+            height: eye.height,
+            score: eye.y * 1000 + eye.width * eye.height,
+          });
+        }
+        eyesArray.sort((a, b) => a.score - b.score);
+        eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
+        let selectedEyes = eyesArray.slice(0, 2);
+        if (selectedEyes.length === 2) {
+          selectedEyes.sort((a, b) => a.x - b.x);
+          let leftEye = selectedEyes[0];
+          let rightEye = selectedEyes[1];
+          let leftEyeCenter = {
+            x: faceRect.x + leftEye.x + leftEye.width / 2,
+            y: faceRect.y + leftEye.y + leftEye.height / 2,
+          };
+          let rightEyeCenter = {
+            x: faceRect.x + rightEye.x + rightEye.width / 2,
+            y: faceRect.y + rightEye.y + rightEye.height / 2,
+          };
+          let eyesAngle =
+            Math.atan2(
+              rightEyeCenter.y - leftEyeCenter.y,
+              rightEyeCenter.x - leftEyeCenter.x
+            ) *
+            (180 / Math.PI);
+          return { angle: eyesAngle, eyeRects: selectedEyes };
+        }
+        return { angle: null, eyeRects: [] };
+      }
+
+      // Analyse de la qualité de l'image
+      async function analyzeImageQuality(gray) {
+        let brightnessMean = new cv.Mat();
+        let brightnessStdDev = new cv.Mat();
+        cv.meanStdDev(gray, brightnessMean, brightnessStdDev);
+        let brightness = Math.round(brightnessMean.data64F[0]);
+        let laplacian = new cv.Mat();
+        cv.Laplacian(gray, laplacian, cv.CV_64F);
+        let mean = new cv.Mat();
+        let stdDev = new cv.Mat();
+        cv.meanStdDev(laplacian, mean, stdDev);
+        let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
+        brightnessMean.delete();
+        brightnessStdDev.delete();
+        laplacian.delete();
+        mean.delete();
+        stdDev.delete();
+        return { variance, brightness };
+      }
+
+      // Fonction principale d'analyse d'image
+      async function analyzeImage(imageSrc) {
+        const img = new Image();
+        img.src = imageSrc;
+        await new Promise((resolve) => (img.onload = resolve));
+        const canvas = document.createElement("canvas");
+        canvas.width = PROCESSING_WIDTH;
+        canvas.height = PROCESSING_HEIGHT;
+        const context = canvas.getContext("2d");
+        context.drawImage(img, 0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
+        let src = cv.imread(canvas);
+        let gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        const imageQuality = await analyzeImageQuality(gray);
+        const faceRect = await detectFace(src, gray);
+        let eyesData = { angle: null, eyeRects: [] };
+        if (faceRect) {
+          eyesData = await eyeDetection(src, faceRect);
+        }
+        const isImageQualityGood =
+          imageQuality.variance >= VARIANCE_MIN &&
+          imageQuality.brightness >= BRIGHTNESS_MIN &&
+          imageQuality.brightness <= BRIGHTNESS_MAX;
+        const isEyesAligned =
+          eyesData.angle !== null &&
+          Math.abs(eyesData.angle) < EYES_ALIGNMENT_THRESHOLD;
+        const globalStatus =
+          isImageQualityGood && faceRect && isEyesAligned
+            ? "Valide"
+            : "Invalide";
+
+        // Vérifier les options des cases à cocher
+        const showFaceRect = document.getElementById("showFaceRect").checked;
+        const showEyesRect = document.getElementById("showEyesRect").checked;
+
+        // Dessiner le rectangle du visage si activé
+        if (showFaceRect && faceRect) {
+          cv.rectangle(
+            src,
+            new cv.Point(faceRect.x, faceRect.y),
+            new cv.Point(
+              faceRect.x + faceRect.width,
+              faceRect.y + faceRect.height
+            ),
+            [255, 0, 0, 255], // Rouge
+            2
+          );
+        }
+
+        // Dessiner les rectangles des yeux si activé
+        if (showEyesRect && eyesData.eyeRects.length === 2) {
+          eyesData.eyeRects.forEach((eye) => {
+            cv.rectangle(
+              src,
+              new cv.Point(faceRect.x + eye.x, faceRect.y + eye.y),
+              new cv.Point(
+                faceRect.x + eye.x + eye.width,
+                faceRect.y + eye.y + eye.height
+              ),
+              [0, 255, 0, 255], // Vert
+              2
+            );
+          });
+        }
+
+        // Convertir l'image modifiée en canvas
+        cv.imshow(canvas, src);
+        src.delete();
+        gray.delete();
+
+        return {
+          faceDetected: !!faceRect,
+          eyesDetected: eyesData.eyeRects.length === 2,
+          eyesAligned: isEyesAligned,
+          brightness: imageQuality.brightness,
+          variance: imageQuality.variance,
+          globalStatus: globalStatus,
+          eyesAngle:
+            eyesData.angle !== null ? eyesData.angle.toFixed(1) : "Non détecté",
+          canvas: canvas, // Retourner le canvas pour affichage
+        };
+      }
+
+      // Gestion du clic sur le bouton d'analyse
+      document
+        .getElementById("analyzeButton")
+        .addEventListener("click", async () => {
+          const files = document.getElementById("imageInput").files;
+          const resultsContainer = document.getElementById("resultsContainer");
+          resultsContainer.innerHTML = "";
+
+          if (files.length === 0) {
+            alert("Veuillez sélectionner au moins une image.");
+            return;
+          }
+
+          for (const file of files) {
+            const imageSrc = URL.createObjectURL(file);
+            const analysis = await analyzeImage(imageSrc);
+
+            const imageSection = document.createElement("div");
+            imageSection.className = "image-section";
+
+            // Partie gauche : Afficher le canvas avec les rectangles
+            const leftSection = document.createElement("div");
+            leftSection.className = "left-section";
+            leftSection.appendChild(analysis.canvas);
+
+            // Partie droite : Afficher les résultats
+            const rightSection = document.createElement("div");
+            rightSection.className = "right-section";
+            rightSection.innerHTML = `
+            <h3>Résultats pour ${file.name}</h3>
+            <div class="metrics">
+                <div class="metric-row">
+                    <span>Visage détecté :</span>
+                    <span class="${
+                      analysis.faceDetected ? "status-good" : "status-bad"
+                    }">
+                        ${analysis.faceDetected ? "Oui" : "Non"}
+                    </span>
+                </div>
+                <div class="metric-row">
+                    <span>Yeux détectés :</span>
+                    <span class="${
+                      analysis.eyesDetected ? "status-good" : "status-bad"
+                    }">
+                        ${analysis.eyesDetected ? "Oui" : "Non"}
+                    </span>
+                </div>
+                <div class="metric-row">
+                    <span>Alignement des yeux :</span>
+                    <span class="${
+                      analysis.eyesAligned ? "status-good" : "status-warning"
+                    }">
+                        ${
+                          analysis.eyesAligned
+                            ? "Correct (" + analysis.eyesAngle + "°)"
+                            : "Incorrect (" + analysis.eyesAngle + "°)"
+                        }
+                    </span>
+                </div>
+                <div class="metric-row">
+                    <span>Luminosité :</span>
+                    <span class="${
+                      analysis.brightness >= BRIGHTNESS_MIN &&
+                      analysis.brightness <= BRIGHTNESS_MAX
+                        ? "status-good"
+                        : "status-warning"
+                    }">
+                        ${analysis.brightness}
+                    </span>
+                </div>
+                <div class="metric-row">
+                    <span>Flou (variance) :</span>
+                    <span class="${
+                      analysis.variance >= VARIANCE_MIN
+                        ? "status-good"
+                        : "status-warning"
+                    }">
+                        ${analysis.variance}
+                    </span>
+                </div>
+                <div class="metric-row">
+                    <span>Statut global :</span>
+                    <span class="${
+                      analysis.globalStatus === "Valide"
+                        ? "status-good"
+                        : "status-bad"
+                    }">
+                        ${analysis.globalStatus}
+                    </span>
+                </div>
+            </div>
+          `;
+
+            imageSection.appendChild(leftSection);
+            imageSection.appendChild(rightSection);
+            resultsContainer.appendChild(imageSection);
+          }
+        });
+
+      // Initialisation d'OpenCV
+      async function onOpenCvReady() {
+        console.log("OpenCV.js est prêt.");
+        window.cv = await cv;
+      }
+    </script>
+  </body>
+</html>
