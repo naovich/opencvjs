@@ -207,7 +207,6 @@ button:disabled:hover {
   box-shadow: var(--shadow);
 }
 
-
 .metric-row {
   padding: 12px 15px;
   border-bottom: 1px solid var(--border-color);
@@ -289,4 +288,34 @@ button:disabled:hover {
   height: auto;
   border-radius: var(--radius);
   border: 1px solid var(--border-color);
+}
+
+/* Correction pour le canvas sur mobile */
+canvas {
+  max-width: 100%;
+  height: auto !important;
+  aspect-ratio: 640 / 480;
+}
+
+.section-content canvas,
+.image-section canvas,
+#canvas, 
+#photoCanvas {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+/* Ajustements responsives pour mobile */
+@media (max-width: 768px) {
+  .container, .containerAnalyse {
+    flex-direction: column;
+  }
+  
+  .left-section, .right-section {
+    width: 100%;
+  }
+  
+  .image-section {
+    flex-direction: column;
+  }
 }
