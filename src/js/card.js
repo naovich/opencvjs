@@ -1051,8 +1051,8 @@ async function onOpenCvReady() {
 }
 
 const photoContainer = document.getElementById("photoContainer");
-photoContainer.style.width = "640px";
-photoContainer.style.height = "480px";
+//photoContainer.style.width = "640px";
+//photoContainer.style.height = "480px";
 photoContainer.style.overflow = "hidden";
 photoContainer.style.border = "1px solid #ccc";
 photoContainer.style.borderRadius = "5px";
