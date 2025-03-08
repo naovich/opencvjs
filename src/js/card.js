@@ -1065,3 +1065,24 @@ photoCanvas.width = OUTPUT_WIDTH;
 photoCanvas.height = OUTPUT_HEIGHT;
 canvas.width = PROCESSING_WIDTH;
 canvas.height = PROCESSING_HEIGHT;
+
+// Gestion du métrique
+const toggleMetrics = document.getElementById("toggleMetrics");
+const metrics = document.querySelector(".metrics");
+metrics.style.display = "none";
+
+// Initialiser le texte du bouton en fonction de l'état initial des métriques
+toggleMetrics.textContent = "Afficher les métriques";
+
+toggleMetrics.addEventListener("click", (e) => {
+  e.preventDefault();
+  const computedStyle = window.getComputedStyle(metrics);
+  
+  if (computedStyle.display === "none") {
+    metrics.style.display = "block";
+    toggleMetrics.textContent = "Masquer les métriques";
+  } else {
+    metrics.style.display = "none";
+    toggleMetrics.textContent = "Afficher les métriques";
+  }
+});

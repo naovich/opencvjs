@@ -4,142 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Analyse d'images multiples</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px;
-        background-color: #f0f2f5;
-      }
-      h1 {
-        text-align: center;
-        color: #333;
-      }
-      .upload-section {
-        text-align: center;
-        margin-bottom: 30px;
-      }
-      .upload-section input[type="file"] {
-        margin: 10px;
-        padding: 5px;
-      }
-      .upload-section button {
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-        border: none;
-        border-radius: 5px;
-        background-color: #4caf50;
-        color: white;
-        transition: background-color 0.3s;
-      }
-      .upload-section button:hover {
-        background-color: #45a049;
-      }
-      .container {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-      }
-      .image-section {
-        display: flex;
-        gap: 20px;
-        padding: 15px;
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      }
-      .left-section,
-      .right-section {
-        flex: 1;
-        padding: 10px;
-      }
-      .left-section canvas {
-        width: 100%;
-        height: auto;
-        border-radius: 5px;
-        border: 1px solid #ddd;
-      }
-      .right-section {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .metrics {
-        margin-top: 10px;
-        padding: 10px;
-        background-color: #f9f9f9;
-        border-radius: 5px;
-      }
-      .metric-row {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px solid #ddd;
-        padding: 8px 0;
-      }
-      .status-good {
-        color: #4caf50;
-        font-weight: bold;
-      }
-      .status-warning {
-        color: #ff9800;
-        font-weight: bold;
-      }
-      .status-bad {
-        color: #f44336;
-        font-weight: bold;
-      }
-      .nav-menu {
-        background-color: #333;
-        padding: 15px 0;
-        margin-bottom: 20px;
-      }
-      .nav-menu ul {
-        list-style-type: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-      }
-      .nav-menu a {
-        color: white;
-        text-decoration: none;
-        font-size: 16px;
-        padding: 8px 15px;
-        border-radius: 4px;
-        transition: background-color 0.3s;
-      }
-      .nav-menu a:hover {
-        background-color: #555;
-      }
-      .nav-menu a.active {
-        background-color: #4caf50;
-      }
-    </style>
+    <link rel="stylesheet" href="src/style.css">
   </head>
   <body>
     <nav class="nav-menu">
-      <ul>
-        <li><a href="index.html">Prise de photo</a></li>
-        <li><a href="analyse.html" class="active">Analyse d'image</a></li>
-      </ul>
+      <div class="wrapper">
+        <ul>
+          <li><a href="index.html">Prise de photo</a></li>
+          <li><a href="analyse.html" class="active">Analyse d'image</a></li>
+        </ul>
+      </div>
     </nav>
-    <h1>Analyse d'images multiples</h1>
-    <div class="upload-section">
-      <input type="file" id="imageInput" multiple accept="image/*" />
-      <label>
-        <input type="checkbox" id="showFaceRect" checked /> Afficher le
-        rectangle du visage
-      </label>
-      <label>
-        <input type="checkbox" id="showEyesRect" checked /> Afficher les
-        rectangles des yeux
-      </label>
-      <button id="analyzeButton">Analyser les images</button>
+    
+    <div class="wrapper">
+      <h1>Analyse d'images multiples</h1>
+      <div class="upload-section section">
+        <div class="section-header">Analyse d'images</div>
+        <div class="section-content">
+          <input type="file" id="imageInput" multiple accept="image/*" />
+          
+          <div class="checkboxes">
+            <label>
+              <input type="checkbox" id="showFaceRect" checked /> 
+              Afficher le rectangle du visage
+            </label>
+            <label>
+              <input type="checkbox" id="showEyesRect" checked /> 
+              Afficher les rectangles des yeux
+            </label>
+          </div>
+          
+          <button id="analyzeButton" disabled>Analyser les images</button>
+        </div>
+      </div>
+      <div id="containerAnalyse" class="containerAnalyse"></div>
     </div>
-    <div id="resultsContainer" class="container"></div>
+
     <script
       async
       src="https://docs.opencv.org/4.11.0/opencv.js"
@@ -152,7 +52,19 @@
       const VARIANCE_MIN = 100;
       const BRIGHTNESS_MIN = 50;
       const BRIGHTNESS_MAX = 300;
-      const EYES_ALIGNMENT_THRESHOLD = 5;
+      const EYES_ALIGNMENT_THRESHOLD = 6;
+
+      // Gestion de l'état du bouton d'analyse
+      const imageInput = document.getElementById("imageInput");
+      const analyzeButton = document.getElementById("analyzeButton");
+      
+      // Désactiver le bouton par défaut (aucune image sélectionnée au démarrage)
+      analyzeButton.disabled = true;
+      
+      // Mettre à jour l'état du bouton lorsque la sélection d'images change
+      imageInput.addEventListener("change", function() {
+        analyzeButton.disabled = this.files.length === 0;
+      });
 
       // Chargement du classificateur de visage
       async function loadCascadeClassifier() {
@@ -293,12 +205,47 @@
         const img = new Image();
         img.src = imageSrc;
         await new Promise((resolve) => (img.onload = resolve));
+        
+        // Créer un canvas avec une taille fixe
         const canvas = document.createElement("canvas");
         canvas.width = PROCESSING_WIDTH;
         canvas.height = PROCESSING_HEIGHT;
         const context = canvas.getContext("2d");
-        context.drawImage(img, 0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
-        let src = cv.imread(canvas);
+        
+        // Remplir le canvas avec du blanc
+        context.fillStyle = "white";
+        context.fillRect(0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
+        
+        // Calculer les dimensions pour préserver les proportions
+        const imgRatio = img.width / img.height;
+        const canvasRatio = PROCESSING_WIDTH / PROCESSING_HEIGHT;
+        
+        let drawWidth, drawHeight, offsetX, offsetY;
+        
+        if (imgRatio > canvasRatio) {
+          // L'image est plus large que le canvas (proportionnellement)
+          drawWidth = PROCESSING_WIDTH;
+          drawHeight = PROCESSING_WIDTH / imgRatio;
+          offsetX = 0;
+          offsetY = (PROCESSING_HEIGHT - drawHeight) / 2;
+        } else {
+          // L'image est plus haute que le canvas (proportionnellement)
+          drawHeight = PROCESSING_HEIGHT;
+          drawWidth = PROCESSING_HEIGHT * imgRatio;
+          offsetX = (PROCESSING_WIDTH - drawWidth) / 2;
+          offsetY = 0;
+        }
+        
+        // Dessiner l'image centrée dans le canvas
+        context.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+        
+        // Créer une copie du canvas pour le traitement OpenCV
+        const processingCanvas = document.createElement("canvas");
+        processingCanvas.width = PROCESSING_WIDTH;
+        processingCanvas.height = PROCESSING_HEIGHT;
+        processingCanvas.getContext("2d").drawImage(canvas, 0, 0);
+        
+        let src = cv.imread(processingCanvas);
         let gray = new cv.Mat();
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         const imageQuality = await analyzeImageQuality(gray);
@@ -376,7 +323,7 @@
         .getElementById("analyzeButton")
         .addEventListener("click", async () => {
           const files = document.getElementById("imageInput").files;
-          const resultsContainer = document.getElementById("resultsContainer");
+          const resultsContainer = document.getElementById("containerAnalyse");
           resultsContainer.innerHTML = "";
 
           if (files.length === 0) {
@@ -470,11 +417,15 @@
           }
         });
 
+
       // Initialisation d'OpenCV
       async function onOpenCvReady() {
         console.log("OpenCV.js est prêt.");
         window.cv = await cv;
       }
+
+      // toujours afficher les metriques
+      metrics.style.display = "block";
     </script>
   </body>
 </html>
