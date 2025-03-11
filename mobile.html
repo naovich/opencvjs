@@ -108,36 +108,7 @@
         max-width: 90%;
         text-align: center;
       }
-      #zoomModal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.9);
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 2000;
-      }
-      #zoomCanvas {
-        touch-action: none;
-      }
-      .zoomControls {
-        display: flex;
-        justify-content: center;
-        margin-top: 20px;
-        width: 100%;
-      }
-      .zoomControls button {
-        padding: 10px 20px;
-        margin: 0 10px;
-        background-color: #333;
-        color: white;
-        border: none;
-        border-radius: 5px;
-      }
+
       .photoButtons {
         display: flex;
         justify-content: space-around;
@@ -201,14 +172,7 @@
       </div>
     </div>
 
-    <div id="zoomModal">
-      <canvas id="zoomCanvas"></canvas>
-      <div class="zoomControls">
-        <button id="zoomIn">Zoom +</button>
-        <button id="zoomOut">Zoom -</button>
-        <button id="closeZoom">Fermer</button>
-      </div>
-    </div>
+
 
     <script>
       // Variables pour le canvas et la vidéo
@@ -224,12 +188,7 @@
       let showCard = true;
       let showGuide = true;
       let captureMetrics = {};
-      let zoomScale = 1;
-      let zoomOffsetX = 0;
-      let zoomOffsetY = 0;
-      let isDragging = false;
-      let lastX = 0;
-      let lastY = 0;
+
 
       // Constantes pour les métriques
       const BRIGHTNESS_MIN = 50;
@@ -340,18 +299,7 @@
         document
           .getElementById("confirmPhoto")
           .addEventListener("click", confirmPhoto);
-        document
-          .getElementById("photoCanvas")
-          .addEventListener("click", openZoomModal);
-        document
-          .getElementById("zoomIn")
-          .addEventListener("click", () => zoomImage(0.1));
-        document
-          .getElementById("zoomOut")
-          .addEventListener("click", () => zoomImage(-0.1));
-        document
-          .getElementById("closeZoom")
-          .addEventListener("click", closeZoomModal);
+        // Les gestionnaires d'événements liés au zoom ont été supprimés
 
         // Configurer les événements pour les options
         document.getElementById("showFace").addEventListener("change", (e) => {
@@ -616,7 +564,7 @@
       }
 
       // Capture de la photo
-      function capturePhoto(mode = "auto") {
+      async function capturePhoto(mode = "auto") {
         if (!lastFaceRect) {
           console.log("Capture impossible : aucun visage détecté");
           return;
@@ -627,6 +575,46 @@
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
           let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
 
+          // Créer un Mat à partir du canvas pour l'analyse de qualité
+          // Utiliser le canvas actuel plutôt que de créer un nouveau Mat directement à partir de la vidéo
+          const tempCanvas = document.createElement("canvas");
+          const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+          tempCanvas.width = video.videoWidth;
+          tempCanvas.height = video.videoHeight;
+          tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+          
+          // Convertir le canvas en Mat
+          const src = openCv.imread(tempCanvas);
+          
+          // Convertir en niveaux de gris
+          const gray = new openCv.Mat();
+          openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
+          
+          // Analyser la qualité de l'image
+          const imageQuality = await analyzeImageQuality(gray);
+          
+          // Libérer la mémoire
+          src.delete();
+          gray.delete();
+          
+          // Évaluer la luminosité
+          let brightnessEvaluation;
+          if (imageQuality.brightness > BRIGHTNESS_MIN && imageQuality.brightness < BRIGHTNESS_MAX) {
+            brightnessEvaluation = imageQuality.brightness + " (Bonne)";
+          } else if (imageQuality.brightness <= BRIGHTNESS_MIN) {
+            brightnessEvaluation = imageQuality.brightness + " (Trop sombre)";
+          } else {
+            brightnessEvaluation = imageQuality.brightness + " (Trop claire)";
+          }
+          
+          // Évaluer la netteté
+          let varianceEvaluation;
+          if (imageQuality.variance > VARIANCE_MIN) {
+            varianceEvaluation = imageQuality.variance + " (Bonne)";
+          } else {
+            varianceEvaluation = imageQuality.variance + " (Insuffisante)";
+          }
+          
           // Enregistrer les métriques de capture
           captureMetrics = {
             mode: mode,
@@ -635,8 +623,8 @@
             cardRect: { ...extrapolatedCardRect },
             alignment: calculateAlignment(lastFaceRect, extrapolatedCardRect),
             distance: calculateDistance(extrapolatedCardRect),
-            brightness: calculateBrightness(),
-            variance: calculateVariance(),
+            brightness: brightnessEvaluation,
+            variance: varianceEvaluation,
             cardAngle: calculateCardAngle(extrapolatedCardRect),
           };
 
@@ -789,113 +777,37 @@
         }
       }
 
-      function calculateBrightness() {
+      async function analyzeImageQuality(gray) {
         try {
-          // Créer un canvas temporaire pour l'analyse
-          const tempCanvas = document.createElement("canvas");
-          const tempCtx = tempCanvas.getContext("2d");
-          tempCanvas.width = 50; // Petite taille pour l'analyse
-          tempCanvas.height = 50;
-
-          // Dessiner une partie de la vidéo sur le canvas temporaire
-          tempCtx.drawImage(
-            video,
-            video.videoWidth / 2 - 25,
-            video.videoHeight / 2 - 25,
-            50,
-            50,
-            0,
-            0,
-            50,
-            50
-          );
-
-          // Obtenir les données de l'image
-          const imageData = tempCtx.getImageData(0, 0, 50, 50);
-          const data = imageData.data;
-
-          // Calculer la luminosité moyenne
-          let sum = 0;
-          for (let i = 0; i < data.length; i += 4) {
-            // Formule standard pour la luminosité: 0.299*R + 0.587*G + 0.114*B
-            sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-          }
-
-          const brightness = Math.round(sum / (data.length / 4));
-
-          // Évaluer la luminosité
-          if (brightness > BRIGHTNESS_MIN && brightness < BRIGHTNESS_MAX) {
-            return brightness + " (Bonne)";
-          } else if (brightness <= BRIGHTNESS_MIN) {
-            return brightness + " (Trop sombre)";
-          } else {
-            return brightness + " (Trop claire)";
-          }
+          // Mesurer la luminosité
+          let brightnessMean = new openCv.Mat();
+          let brightnessStdDev = new openCv.Mat();
+          openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
+          let brightness = Math.round(brightnessMean.data64F[0]);
+          
+          // Mesurer la netteté avec Laplacian
+          let laplacian = new openCv.Mat();
+          openCv.Laplacian(gray, laplacian, openCv.CV_64F);
+          let mean = new openCv.Mat();
+          let stdDev = new openCv.Mat();
+          openCv.meanStdDev(laplacian, mean, stdDev);
+          let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
+          
+          // Libérer la mémoire
+          brightnessMean.delete();
+          brightnessStdDev.delete();
+          laplacian.delete();
+          mean.delete();
+          stdDev.delete();
+          
+          return { variance, brightness };
         } catch (err) {
-          console.error("Erreur dans calculateBrightness:", err);
-          return "Non mesurée";
+          console.error("Erreur dans analyzeImageQuality:", err);
+          return { variance: 0, brightness: 0 };
         }
       }
-
-      function calculateVariance() {
-        try {
-          // Créer un canvas temporaire pour l'analyse
-          const tempCanvas = document.createElement("canvas");
-          const tempCtx = tempCanvas.getContext("2d");
-          tempCanvas.width = 50; // Petite taille pour l'analyse
-          tempCanvas.height = 50;
-
-          // Dessiner une partie de la vidéo sur le canvas temporaire
-          tempCtx.drawImage(
-            video,
-            video.videoWidth / 2 - 25,
-            video.videoHeight / 2 - 25,
-            50,
-            50,
-            0,
-            0,
-            50,
-            50
-          );
-
-          // Obtenir les données de l'image
-          const imageData = tempCtx.getImageData(0, 0, 50, 50);
-          const data = imageData.data;
-
-          // Convertir en niveaux de gris et calculer la moyenne
-          const grayValues = [];
-          let sum = 0;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = Math.round(
-              0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-            );
-            grayValues.push(gray);
-            sum += gray;
-          }
-
-          const mean = sum / grayValues.length;
-
-          // Calculer la variance (écart-type au carré)
-          let sumSquaredDiff = 0;
-          for (let i = 0; i < grayValues.length; i++) {
-            const diff = grayValues[i] - mean;
-            sumSquaredDiff += diff * diff;
-          }
-
-          const variance = Math.round(sumSquaredDiff / grayValues.length);
-
-          // Évaluer la netteté
-          if (variance > VARIANCE_MIN) {
-            return variance + " (Bonne)";
-          } else {
-            return variance + " (Insuffisante)";
-          }
-        } catch (err) {
-          console.error("Erreur dans calculateVariance:", err);
-          return "Non mesurée";
-        }
-      }
+      
+      // Les fonctions calculateBrightness et calculateVariance ont été remplacées par l'utilisation directe de analyzeImageQuality
 
       function calculateCardAngle(cardRect) {
         if (!cardRect) return null;
@@ -905,136 +817,9 @@
         return 0;
       }
 
-      // Fonctions pour le zoom et le déplacement de l'image
-      function openZoomModal() {
-        const photoCanvas = document.getElementById("photoCanvas");
-        const zoomCanvas = document.getElementById("zoomCanvas");
-        const zoomModal = document.getElementById("zoomModal");
 
-        // Réinitialiser le zoom et le déplacement
-        zoomScale = 1;
-        zoomOffsetX = 0;
-        zoomOffsetY = 0;
 
-        // Définir les dimensions du canvas de zoom
-        zoomCanvas.width = window.innerWidth * 0.9;
-        zoomCanvas.height = window.innerHeight * 0.7;
 
-        // Dessiner l'image sur le canvas de zoom
-        const zoomCtx = zoomCanvas.getContext("2d");
-        zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
-        zoomCtx.drawImage(
-          photoCanvas,
-          0,
-          0,
-          zoomCanvas.width,
-          zoomCanvas.height
-        );
-
-        // Afficher le modal
-        zoomModal.style.display = "flex";
-      }
-
-      function closeZoomModal() {
-        document.getElementById("zoomModal").style.display = "none";
-      }
-
-      function zoomImage(delta) {
-        const oldScale = zoomScale;
-        zoomScale = Math.max(1, Math.min(5, zoomScale + delta));
-
-        // Ajuster le déplacement pour maintenir le centre
-        const zoomCanvas = document.getElementById("zoomCanvas");
-        const centerX = zoomCanvas.width / 2;
-        const centerY = zoomCanvas.height / 2;
-
-        zoomOffsetX =
-          (zoomOffsetX - centerX) * (zoomScale / oldScale) + centerX;
-        zoomOffsetY =
-          (zoomOffsetY - centerY) * (zoomScale / oldScale) + centerY;
-
-        redrawZoomCanvas();
-      }
-
-      function startDrag(e) {
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-      }
-
-      function drag(e) {
-        if (!isDragging) return;
-
-        const deltaX = e.clientX - lastX;
-        const deltaY = e.clientY - lastY;
-
-        zoomOffsetX += deltaX;
-        zoomOffsetY += deltaY;
-
-        lastX = e.clientX;
-        lastY = e.clientY;
-
-        redrawZoomCanvas();
-      }
-
-      function endDrag() {
-        isDragging = false;
-      }
-
-      function startDragTouch(e) {
-        if (e.touches.length === 1) {
-          isDragging = true;
-          lastX = e.touches[0].clientX;
-          lastY = e.touches[0].clientY;
-        }
-      }
-
-      function dragTouch(e) {
-        if (!isDragging || e.touches.length !== 1) return;
-
-        const deltaX = e.touches[0].clientX - lastX;
-        const deltaY = e.touches[0].clientY - lastY;
-
-        zoomOffsetX += deltaX;
-        zoomOffsetY += deltaY;
-
-        lastX = e.touches[0].clientX;
-        lastY = e.touches[0].clientY;
-
-        redrawZoomCanvas();
-        e.preventDefault();
-      }
-
-      function endDragTouch() {
-        isDragging = false;
-      }
-
-      function redrawZoomCanvas() {
-        const photoCanvas = document.getElementById("photoCanvas");
-        const zoomCanvas = document.getElementById("zoomCanvas");
-        const zoomCtx = zoomCanvas.getContext("2d");
-
-        // Effacer le canvas
-        zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
-
-        // Calculer les dimensions et positions pour le zoom
-        const scaledWidth = zoomCanvas.width * zoomScale;
-        const scaledHeight = zoomCanvas.height * zoomScale;
-
-        // Dessiner l'image avec zoom et déplacement
-        zoomCtx.save();
-        zoomCtx.translate(zoomOffsetX, zoomOffsetY);
-        zoomCtx.scale(zoomScale, zoomScale);
-        zoomCtx.drawImage(
-          photoCanvas,
-          -zoomCanvas.width / 2 / zoomScale + zoomCanvas.width / 2 / zoomScale,
-          -zoomCanvas.height / 2 / zoomScale +
-            zoomCanvas.height / 2 / zoomScale,
-          zoomCanvas.width / zoomScale,
-          zoomCanvas.height / zoomScale
-        );
-        zoomCtx.restore();
-      }
 
       // Dessiner le rectangle guide pour la carte
       function drawCardGuide(ctx, width, height) {
