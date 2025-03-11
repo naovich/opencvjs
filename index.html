@@ -6,7 +6,7 @@
     <title>
       Détection de visage avec extrapolation et alignement de la carte
     </title>
-    <link rel="stylesheet" href="src/style.css">
+    <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
     <nav class="nav-menu">
@@ -17,10 +17,10 @@
         </ul>
       </div>
     </nav>
-    
+
     <div class="wrapper">
       <h1>Détection de visage et alignement de la carte</h1>
-      
+
       <div class="container">
         <div class="left-section section">
           <div class="section-header">Caméra en direct</div>
@@ -31,7 +31,7 @@
               height="480"
               willReadFrequently="true"
             ></canvas>
-            
+
             <div class="checkboxes">
               <label>
                 <input type="checkbox" id="showGuide" checked />
@@ -57,7 +57,7 @@
             <div class="metrics-toggle">
               <a href="#" id="toggleMetrics">Afficher les métriques</a>
             </div>
-            
+
             <div class="metrics">
               <div class="metric-row">
                 <p>
@@ -104,7 +104,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="right-section section">
           <div class="section-header">Photo prise</div>
           <div class="section-content">
@@ -119,16 +119,17 @@
         </div>
       </div>
     </div>
-    
+
     <video
       id="video"
       width="${CAPTURE_WIDTH}"
       height="${CAPTURE_HEIGHT}"
       autoplay
+      playsinline
+      muted
       style="display: none"
     ></video>
-    
-    
+
     <script src="src/js/card.js"></script>
     <script
       async
