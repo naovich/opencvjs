@@ -1,125 +1,132 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Caméra Mobile</title>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-    #canvas {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    #loading {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 24px;
-      z-index: 999;
-    }
-  </style>
-</head>
-<body>
-  <div id="loading">Chargement d'OpenCV...</div>
-  <canvas id="canvas"></canvas>
-  <video id="video" autoplay style="display: none;"></video>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Caméra Mobile</title>
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      #canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        font-size: 24px;
+        z-index: 999;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- <div id="loading">Chargement d'OpenCV...</div> -->
+    <canvas id="canvas"></canvas>
+    <video id="video" autoplay style="display: none"></video>
 
-  <script>
-    // Variables pour le canvas et la vidéo
-    let canvas, ctx, video;
-    
-    // Fonction appelée lorsque OpenCV est chargé
-    function onOpenCvReady() {
-      document.getElementById('loading').style.display = 'none';
+    <script>
+      // Variables pour le canvas et la vidéo
+      let canvas, ctx, video;
+
+      // Fonction appelée lorsque OpenCV est chargé
+      function onOpenCvReady() {
+        document.getElementById("loading").style.display = "none";
+        initCamera();
+      }
       initCamera();
-    }
+      // Initialisation de la caméra
+      function initCamera() {
+        video = document.getElementById("video");
+        canvas = document.getElementById("canvas");
+        ctx = canvas.getContext("2d");
 
-    // Initialisation de la caméra
-    function initCamera() {
-      video = document.getElementById('video');
-      canvas = document.getElementById('canvas');
-      ctx = canvas.getContext('2d');
-      
-      // Ajuster la taille du canvas à la fenêtre
-      function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      }
-      
-      // Appeler resizeCanvas au chargement et au redimensionnement
-      window.addEventListener('resize', resizeCanvas);
-      resizeCanvas();
-      
-      // Accéder à la caméra (préférer la caméra arrière sur mobile)
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+        // Ajuster la taille du canvas à la fenêtre
+        function resizeCanvas() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
         }
-      };
-      
-      navigator.mediaDevices.getUserMedia(constraints)
-        .then(function(stream) {
-          video.srcObject = stream;
-          video.onloadedmetadata = function() {
-            // Commencer le traitement vidéo
-            requestAnimationFrame(processVideo);
-          };
-        })
-        .catch(function(err) {
-          console.error("Erreur d'accès à la caméra: ", err);
-          alert("Impossible d'accéder à la caméra. Veuillez autoriser l'accès à la caméra et recharger la page.");
-        });
-    }
-    
-    // Traitement de la vidéo (simple affichage)
-    function processVideo() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Ajuster le ratio pour maintenir les proportions
-        const videoRatio = video.videoWidth / video.videoHeight;
-        const canvasRatio = canvas.width / canvas.height;
-        
-        let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
-        
-        if (videoRatio > canvasRatio) {
-          // La vidéo est plus large que le canvas
-          drawHeight = canvas.height;
-          drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
-          offsetX = (canvas.width - drawWidth) / 2;
-        } else {
-          // La vidéo est plus haute que le canvas
-          drawWidth = canvas.width;
-          drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
-          offsetY = (canvas.height - drawHeight) / 2;
-        }
-        
-        // Effacer le canvas et dessiner la vidéo
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+
+        // Appeler resizeCanvas au chargement et au redimensionnement
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        // Accéder à la caméra (préférer la caméra arrière sur mobile)
+        const constraints = {
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        };
+
+        navigator.mediaDevices
+          .getUserMedia(constraints)
+          .then(function (stream) {
+            video.srcObject = stream;
+            video.onloadedmetadata = function () {
+              // Commencer le traitement vidéo
+              requestAnimationFrame(processVideo);
+            };
+          })
+          .catch(function (err) {
+            console.error("Erreur d'accès à la caméra: ", err);
+            alert(
+              "Impossible d'accéder à la caméra. Veuillez autoriser l'accès à la caméra et recharger la page."
+            );
+          });
       }
-      
-      // Continuer la boucle
-      requestAnimationFrame(processVideo);
-    }
-  </script>
-  
-  <!-- Chargement d'OpenCV.js -->
-  <script async src="https://docs.opencv.org/4.11.0/opencv.js" onload="onOpenCvReady();"></script>
-</body>
+
+      // Traitement de la vidéo (simple affichage)
+      function processVideo() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          // Ajuster le ratio pour maintenir les proportions
+          const videoRatio = video.videoWidth / video.videoHeight;
+          const canvasRatio = canvas.width / canvas.height;
+
+          let drawWidth,
+            drawHeight,
+            offsetX = 0,
+            offsetY = 0;
+
+          if (videoRatio > canvasRatio) {
+            // La vidéo est plus large que le canvas
+            drawHeight = canvas.height;
+            drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
+            offsetX = (canvas.width - drawWidth) / 2;
+          } else {
+            // La vidéo est plus haute que le canvas
+            drawWidth = canvas.width;
+            drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
+            offsetY = (canvas.height - drawHeight) / 2;
+          }
+
+          // Effacer le canvas et dessiner la vidéo
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+        }
+
+        // Continuer la boucle
+        requestAnimationFrame(processVideo);
+      }
+    </script>
+
+    <!-- Chargement d'OpenCV.js -->
+    <!--   <script async src="https://docs.opencv.org/4.11.0/opencv.js" onload="onOpenCvReady();"></script> -->
+  </body>
 </html>
