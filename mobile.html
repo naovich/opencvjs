@@ -628,7 +628,6 @@
           // Enregistrer les métriques de capture
           captureMetrics = {
             mode: mode,
-            timestamp: new Date().toLocaleTimeString(),
             faceRect: { ...lastFaceRect },
             cardRect: { ...extrapolatedCardRect },
             alignment: calculateAlignment(lastFaceRect, extrapolatedCardRect),
@@ -693,7 +692,6 @@
             const metricsDiv = document.getElementById("photoMetrics");
             metricsDiv.innerHTML = `
               <strong>Mode de capture:</strong> ${captureMetrics.mode === 'auto' ? 'Automatique' : 'Manuel'}<br>
-              <strong>Heure:</strong> ${captureMetrics.timestamp}<br>
               <strong>Alignement visage-carte:</strong> ${captureMetrics.alignment || 'Non mesuré'}<br>
               <strong>Distance caméra-carte:</strong> ${captureMetrics.distance || 'Non mesurée'}<br>
               <strong>Luminosité:</strong> ${captureMetrics.brightness || 'Non mesurée'}<br>
@@ -1074,8 +1072,20 @@
                   const distanceX = Math.abs(cardCenterX - guideCenterX);
                   const distanceY = Math.abs(cardCenterY - guideCenterY);
 
-                  // Si la carte est bien positionnée, capturer automatiquement
-                  if (distanceX < 50 && distanceY < 50) {
+                  // Vérifier si toutes les métriques sont bonnes avant de capturer automatiquement
+                  const alignment = calculateAlignment(faceRect, cardRect);
+                  const distance = calculateDistance(cardRect);
+                  const brightness = calculateBrightness();
+                  const variance = calculateVariance();
+                  
+                  // Vérifier si toutes les métriques sont bonnes
+                  const isAlignmentGood = alignment === "Correct";
+                  const isDistanceGood = distance === "Distance optimale";
+                  const isBrightnessGood = brightness.includes("(Bonne)");
+                  const isVarianceGood = variance.includes("(Bonne)");
+                  
+                  // Si toutes les métriques sont bonnes et la carte est bien positionnée, capturer automatiquement
+                  if (distanceX < 50 && distanceY < 50 && isAlignmentGood && isDistanceGood && isBrightnessGood && isVarianceGood) {
                     capturePhoto('auto');
                   }
                 }
