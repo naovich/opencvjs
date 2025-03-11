@@ -240,8 +240,6 @@
       const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
       const CAPTURE_WIDTH = 1280;
       const CAPTURE_HEIGHT = 720;
-      const ALIGNMENT_TOLERANCE = 5; // Tolérance pour l'alignement de la carte en degrés
-      const OVERLAP_THRESHOLD = 0.7; // Seuil de chevauchement pour la distance
 
       // Fonction appelée lorsque OpenCV est chargé
       async function onOpenCvReady() {
@@ -630,24 +628,15 @@
           let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
 
           // Enregistrer les métriques de capture
-          const alignmentResult = calculateAlignment(
-            lastFaceRect,
-            extrapolatedCardRect
-          );
-          const distanceResult = calculateDistance(extrapolatedCardRect);
-          const imageQuality = analyzeImageQuality();
-
           captureMetrics = {
             mode: mode,
             faceRect: { ...lastFaceRect },
             cardRect: { ...extrapolatedCardRect },
-            alignment: alignmentResult.aligned
-              ? "Correct"
-              : alignmentResult.message,
-            distance: distanceResult.message,
-            brightness: imageQuality.brightness,
-            variance: imageQuality.variance,
-            cardAngle: alignmentResult.angle,
+            alignment: calculateAlignment(lastFaceRect, extrapolatedCardRect),
+            distance: calculateDistance(extrapolatedCardRect),
+            brightness: calculateBrightness(),
+            variance: calculateVariance(),
+            cardAngle: calculateCardAngle(extrapolatedCardRect),
           };
 
           if (video.readyState === 4) {
@@ -708,21 +697,6 @@
 
             // Afficher les métriques de capture
             const metricsDiv = document.getElementById("photoMetrics");
-
-            // Évaluer la qualité des métriques pour l'affichage
-            const brightnessStatus =
-              captureMetrics.brightness >= BRIGHTNESS_MIN &&
-              captureMetrics.brightness <= BRIGHTNESS_MAX
-                ? "Bonne"
-                : captureMetrics.brightness < BRIGHTNESS_MIN
-                ? "Trop sombre"
-                : "Trop claire";
-
-            const varianceStatus =
-              captureMetrics.variance >= VARIANCE_MIN
-                ? "Bonne"
-                : "Insuffisante";
-
             metricsDiv.innerHTML = `
               <strong>Mode de capture:</strong> ${
                 captureMetrics.mode === "auto" ? "Automatique" : "Manuel"
@@ -734,14 +708,14 @@
                 captureMetrics.distance || "Non mesurée"
               }<br>
               <strong>Luminosité:</strong> ${
-                captureMetrics.brightness
-              } (${brightnessStatus})<br>
+                captureMetrics.brightness || "Non mesurée"
+              }<br>
               <strong>Netteté:</strong> ${
-                captureMetrics.variance
-              } (${varianceStatus})<br>
+                captureMetrics.variance || "Non mesurée"
+              }<br>
               <strong>Alignement de la carte:</strong> ${
                 captureMetrics.cardAngle
-                  ? captureMetrics.cardAngle.toFixed(1) + "°"
+                  ? captureMetrics.cardAngle + "°"
                   : "Non mesuré"
               }
             `;
@@ -769,93 +743,48 @@
       }
 
       // Fonctions pour calculer les métriques
-      function calculateAlignment(faceRect, cardRect, cardAngle = 0) {
-        if (!faceRect || !cardRect) {
-          return {
-            aligned: false,
-            message: "Impossible de vérifier l'alignement",
-          };
+      function calculateAlignment(faceRect, cardRect) {
+        if (!faceRect || !cardRect) return "Non détecté";
+
+        // Calculer les centres
+        const faceCenterX = faceRect.x + faceRect.width / 2;
+        const faceCenterY = faceRect.y + faceRect.height / 2;
+        const cardCenterX = cardRect.x + cardRect.width / 2;
+
+        // Vérifier si le visage est centré horizontalement dans la carte
+        const horizontalOffset = Math.abs(faceCenterX - cardCenterX);
+        const maxOffset = cardRect.width * 0.1; // 10% de la largeur de la carte
+
+        if (horizontalOffset <= maxOffset) {
+          return "Correct";
+        } else if (faceCenterX < cardCenterX) {
+          return "Visage trop à gauche";
+        } else {
+          return "Visage trop à droite";
         }
-
-        // Vérifier si la carte est bien alignée (horizontale)
-        const isAligned = Math.abs(cardAngle) < ALIGNMENT_TOLERANCE;
-
-        return {
-          aligned: isAligned,
-          angle: cardAngle,
-          message: isAligned
-            ? "Alignement correct"
-            : `Aligner la carte (${cardAngle.toFixed(1)}°)`,
-        };
       }
 
       function calculateDistance(cardRect) {
-        if (!cardRect) {
-          return {
-            correct: false,
-            message: "Distance indéterminée",
-          };
-        }
+        if (!cardRect) return "Non mesurée";
 
-        // Calculer le rectangle guide pour la distance optimale
-        const guideRect = {
-          x: Math.round(
-            canvas.width / 2 - (canvas.width * GUIDE_RECT_FACTOR_WIDTH) / 2
-          ),
-          y: Math.round(
-            canvas.height / 2 - (canvas.height * GUIDE_RECT_FACTOR_HEIGHT) / 2
-          ),
-          width: Math.round(canvas.width * GUIDE_RECT_FACTOR_WIDTH),
-          height: Math.round(canvas.height * GUIDE_RECT_FACTOR_HEIGHT),
-        };
-
-        // Calculer l'intersection entre la carte et le guide
-        const intersectionArea = calculateIntersection(cardRect, guideRect);
+        // Calculer la surface de la carte
         const cardArea = cardRect.width * cardRect.height;
-        const guideArea = guideRect.width * guideRect.height;
-        const cardOverlapRatio = intersectionArea / cardArea;
-        const guideOverlapRatio = intersectionArea / guideArea;
 
-        if (cardOverlapRatio > OVERLAP_THRESHOLD && guideOverlapRatio > 0.5) {
-          return {
-            correct: true,
-            message: "Distance optimale",
-            area: cardArea,
-            overlap: cardOverlapRatio,
-          };
-        } else if (cardArea < guideArea * 0.6) {
-          return {
-            correct: false,
-            message: "Trop loin",
-            area: cardArea,
-            overlap: cardOverlapRatio,
-          };
-        } else if (cardArea > guideArea * 1.4) {
-          return {
-            correct: false,
-            message: "Trop proche",
-            area: cardArea,
-            overlap: cardOverlapRatio,
-          };
+        // Calculer la surface idéale (basée sur les dimensions du canvas)
+        const idealWidth = canvas.width * 0.7;
+        const idealHeight = idealWidth / CARD_RATIO;
+        const idealArea = idealWidth * idealHeight;
+
+        // Comparer les surfaces
+        const ratio = cardArea / idealArea;
+
+        if (ratio > 0.8 && ratio < 1.2) {
+          return "Distance optimale";
+        } else if (ratio <= 0.8) {
+          return "Trop loin";
         } else {
-          return {
-            correct: false,
-            message: "Ajuster la position",
-            area: cardArea,
-            overlap: cardOverlapRatio,
-          };
+          return "Trop proche";
         }
-      }
-
-      // Fonction pour calculer l'intersection entre deux rectangles
-      function calculateIntersection(rect1, rect2) {
-        const x1 = Math.max(rect1.x, rect2.x);
-        const y1 = Math.max(rect1.y, rect2.y);
-        const x2 = Math.min(rect1.x + rect1.width, rect2.x + rect2.width);
-        const y2 = Math.min(rect1.y + rect1.height, rect2.y + rect2.height);
-
-        if (x1 >= x2 || y1 >= y2) return 0;
-        return (x2 - x1) * (y2 - y1);
       }
 
       function calculateBrightness() {
@@ -892,10 +821,17 @@
 
           const brightness = Math.round(sum / (data.length / 4));
 
-          return brightness;
+          // Évaluer la luminosité
+          if (brightness > BRIGHTNESS_MIN && brightness < BRIGHTNESS_MAX) {
+            return brightness + " (Bonne)";
+          } else if (brightness <= BRIGHTNESS_MIN) {
+            return brightness + " (Trop sombre)";
+          } else {
+            return brightness + " (Trop claire)";
+          }
         } catch (err) {
           console.error("Erreur dans calculateBrightness:", err);
-          return 0;
+          return "Non mesurée";
         }
       }
 
@@ -947,22 +883,16 @@
 
           const variance = Math.round(sumSquaredDiff / grayValues.length);
 
-          return variance;
+          // Évaluer la netteté
+          if (variance > VARIANCE_MIN) {
+            return variance + " (Bonne)";
+          } else {
+            return variance + " (Insuffisante)";
+          }
         } catch (err) {
           console.error("Erreur dans calculateVariance:", err);
-          return 0;
+          return "Non mesurée";
         }
-      }
-
-      // Fonction pour analyser la qualité de l'image
-      function analyzeImageQuality() {
-        const brightness = calculateBrightness();
-        const variance = calculateVariance();
-
-        return {
-          brightness: brightness,
-          variance: variance,
-        };
       }
 
       function calculateCardAngle(cardRect) {
@@ -1199,33 +1129,32 @@
                   const distanceY = Math.abs(cardCenterY - guideCenterY);
 
                   // Vérifier si toutes les métriques sont bonnes avant de capturer automatiquement
-                  const alignmentResult = calculateAlignment(
-                    faceRect,
-                    cardRect
-                  );
-                  const distanceResult = calculateDistance(cardRect);
-                  const imageQuality = analyzeImageQuality();
+                  const alignment = calculateAlignment(faceRect, cardRect);
+                  const distance = calculateDistance(cardRect);
+                  const brightness = calculateBrightness();
+                  const variance = calculateVariance();
 
-                  // Calculer l'angle de la carte (actuellement fixé à 0)
-                  const cardAngle = calculateCardAngle(cardRect);
+                  // Vérifier si toutes les métriques sont bonnes
+                  const isAlignmentGood = alignment === "Correct";
+                  const isDistanceGood = distance === "Distance optimale";
+                  const isBrightnessGood = brightness.includes("(Bonne)");
+                  const isVarianceGood = variance.includes("(Bonne)");
 
-                  // Condition exactement comme dans index.html (card.js)
+                  // Si toutes les métriques sont bonnes et la carte est bien positionnée, capturer automatiquement
                   if (
-                    alignmentResult.aligned &&
-                    distanceResult.correct &&
-                    imageQuality.variance >= VARIANCE_MIN &&
-                    imageQuality.brightness >= BRIGHTNESS_MIN &&
-                    imageQuality.brightness <= BRIGHTNESS_MAX &&
                     distanceX < 50 &&
                     distanceY < 50 &&
-                    autoCaptureEnabled &&
-                    !photoTaken
+                    isAlignmentGood &&
+                    isDistanceGood &&
+                    isBrightnessGood &&
+                    isVarianceGood
                   ) {
                     capturePhoto("auto");
                   }
                 }
               }
 
+              // Afficher le résultat OpenCV
               openCv.imshow(canvas, src);
               src.delete();
               gray.delete();
