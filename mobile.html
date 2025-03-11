@@ -14,6 +14,38 @@
         overflow: hidden;
         font-family: Arial, sans-serif;
       }
+      #options {
+        position: fixed;
+        top: 10px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        z-index: 100;
+      }
+      .checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 10px;
+        margin: 0 10px;
+      }
+      .checkboxes label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .checkboxes input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #4caf50;
+      }
       #canvas {
         width: 100%;
         height: 100%;
@@ -93,6 +125,28 @@
       Chargement d'OpenCV...<br />Touchez l'écran après le chargement si la
       caméra ne démarre pas
     </div>
+    
+    <div id="options">
+      <div class="checkboxes">
+        <label>
+          <input type="checkbox" id="showFace" checked />
+          Visage
+        </label>
+        <label>
+          <input type="checkbox" id="showCard" checked />
+          Carte
+        </label>
+        <label>
+          <input type="checkbox" id="showGuide" checked />
+          Guide
+        </label>
+        <label>
+          <input type="checkbox" id="autoCapture" checked />
+          Capture auto
+        </label>
+      </div>
+    </div>
+    
     <canvas id="canvas"></canvas>
     <video id="video" autoplay playsinline muted style="display: none"></video>
     <button id="captureBtn">Prendre la photo</button>
@@ -115,6 +169,9 @@
       let lastCardRect = null;
       let photoTaken = false;
       let autoCaptureEnabled = true;
+      let showFace = true;
+      let showCard = true;
+      let showGuide = true;
 
       // Constantes
       const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
@@ -220,6 +277,20 @@
         document
           .getElementById("confirmPhoto")
           .addEventListener("click", confirmPhoto);
+          
+        // Configurer les événements pour les options
+        document.getElementById("showFace").addEventListener("change", (e) => {
+          showFace = e.target.checked;
+        });
+        document.getElementById("showCard").addEventListener("change", (e) => {
+          showCard = e.target.checked;
+        });
+        document.getElementById("showGuide").addEventListener("change", (e) => {
+          showGuide = e.target.checked;
+        });
+        document.getElementById("autoCapture").addEventListener("change", (e) => {
+          autoCaptureEnabled = e.target.checked;
+        });
       }
 
       // Chargement du classificateur pour la détection de visage
@@ -317,13 +388,15 @@
               height: bestFace.height,
             };
 
-            // Dessiner le rectangle du visage
-            let pt1 = new openCv.Point(currentFaceRect.x, currentFaceRect.y);
-            let pt2 = new openCv.Point(
-              currentFaceRect.x + currentFaceRect.width,
-              currentFaceRect.y + currentFaceRect.height
-            );
-            openCv.rectangle(src, pt1, pt2, [0, 255, 0, 255], 2);
+            // Dessiner le rectangle du visage si l'option est activée
+            if (showFace) {
+              let pt1 = new openCv.Point(currentFaceRect.x, currentFaceRect.y);
+              let pt2 = new openCv.Point(
+                currentFaceRect.x + currentFaceRect.width,
+                currentFaceRect.y + currentFaceRect.height
+              );
+              openCv.rectangle(src, pt1, pt2, [0, 255, 0, 255], 2);
+            }
           }
         }
 
@@ -387,21 +460,23 @@
           if (selectedEyes.length === 2) {
             selectedEyes.sort((a, b) => a.x - b.x);
 
-            // Dessiner les rectangles des yeux
-            selectedEyes.forEach((eye) => {
-              let eyeRect = new openCv.Rect(
-                faceRect.x + eye.x,
-                faceRect.y + eye.y,
-                eye.width,
-                eye.height
-              );
-              let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
-              let pt2 = new openCv.Point(
-                eyeRect.x + eyeRect.width,
-                eyeRect.y + eyeRect.height
-              );
-              openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
-            });
+            // Dessiner les rectangles des yeux si l'option d'affichage du visage est activée
+            if (showFace) {
+              selectedEyes.forEach((eye) => {
+                let eyeRect = new openCv.Rect(
+                  faceRect.x + eye.x,
+                  faceRect.y + eye.y,
+                  eye.width,
+                  eye.height
+                );
+                let pt1 = new openCv.Point(eyeRect.x, eyeRect.y);
+                let pt2 = new openCv.Point(
+                  eyeRect.x + eyeRect.width,
+                  eyeRect.y + eyeRect.height
+                );
+                openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
+              });
+            }
 
             // Dessiner la ligne entre les yeux
             let leftEye = selectedEyes[0];
@@ -417,13 +492,16 @@
               y: faceRect.y + rightEye.y + rightEye.height / 2,
             };
 
-            openCv.line(
-              src,
-              new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
-              new openCv.Point(rightEyeCenter.x, rightEyeCenter.y),
-              [0, 255, 255, 255],
-              2
-            );
+            // Dessiner la ligne entre les yeux si l'option d'affichage du visage est activée
+            if (showFace) {
+              openCv.line(
+                src,
+                new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
+                new openCv.Point(rightEyeCenter.x, rightEyeCenter.y),
+                [0, 255, 255, 255],
+                2
+              );
+            }
           }
 
           eyes.delete();
@@ -603,14 +681,16 @@
                 // Détecter les yeux
                 await detectEyes(src, faceRect);
 
-                // Extrapoler et dessiner le rectangle de la carte
+                // Extrapoler et dessiner le rectangle de la carte si l'option est activée
                 const cardRect = extrapolateCardRectangle(faceRect);
-                let pt1 = new openCv.Point(cardRect.x, cardRect.y);
-                let pt2 = new openCv.Point(
-                  cardRect.x + cardRect.width,
-                  cardRect.y + cardRect.height
-                );
-                openCv.rectangle(src, pt1, pt2, [255, 165, 0, 255], 2);
+                if (showCard) {
+                  let pt1 = new openCv.Point(cardRect.x, cardRect.y);
+                  let pt2 = new openCv.Point(
+                    cardRect.x + cardRect.width,
+                    cardRect.y + cardRect.height
+                  );
+                  openCv.rectangle(src, pt1, pt2, [255, 165, 0, 255], 2);
+                }
 
                 // Capture automatique si un visage est détecté
                 if (autoCaptureEnabled && !photoTaken) {
