@@ -166,7 +166,7 @@
       Chargement d'OpenCV...<br />Touchez l'écran après le chargement si la
       caméra ne démarre pas
     </div>
-    
+
     <div id="options">
       <div class="checkboxes">
         <label>
@@ -187,7 +187,7 @@
         </label>
       </div>
     </div>
-    
+
     <canvas id="canvas"></canvas>
     <video id="video" autoplay playsinline muted style="display: none"></video>
     <button id="captureBtn">Prendre la photo</button>
@@ -200,7 +200,7 @@
         <button id="retakePhoto">Reprendre</button>
       </div>
     </div>
-    
+
     <div id="zoomModal">
       <canvas id="zoomCanvas"></canvas>
       <div class="zoomControls">
@@ -230,7 +230,7 @@
       let isDragging = false;
       let lastX = 0;
       let lastY = 0;
-      
+
       // Constantes pour les métriques
       const BRIGHTNESS_MIN = 50;
       const BRIGHTNESS_MAX = 200;
@@ -333,7 +333,7 @@
         // Configurer les événements pour les boutons
         document
           .getElementById("captureBtn")
-          .addEventListener("click", () => capturePhoto('manuel'));
+          .addEventListener("click", () => capturePhoto("manuel"));
         document
           .getElementById("retakePhoto")
           .addEventListener("click", retakePhoto);
@@ -352,7 +352,7 @@
         document
           .getElementById("closeZoom")
           .addEventListener("click", closeZoomModal);
-          
+
         // Configurer les événements pour les options
         document.getElementById("showFace").addEventListener("change", (e) => {
           showFace = e.target.checked;
@@ -363,10 +363,12 @@
         document.getElementById("showGuide").addEventListener("change", (e) => {
           showGuide = e.target.checked;
         });
-        document.getElementById("autoCapture").addEventListener("change", (e) => {
-          autoCaptureEnabled = e.target.checked;
-        });
-        
+        document
+          .getElementById("autoCapture")
+          .addEventListener("change", (e) => {
+            autoCaptureEnabled = e.target.checked;
+          });
+
         // Configurer les événements pour le zoom et le déplacement
         const zoomCanvas = document.getElementById("zoomCanvas");
         zoomCanvas.addEventListener("mousedown", startDrag);
@@ -614,7 +616,7 @@
       }
 
       // Capture de la photo
-      function capturePhoto(mode = 'auto') {
+      function capturePhoto(mode = "auto") {
         if (!lastFaceRect) {
           console.log("Capture impossible : aucun visage détecté");
           return;
@@ -624,48 +626,56 @@
           // Extrapoler le rectangle de la carte
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
           let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
-          
+
           // Enregistrer les métriques de capture
+          const alignmentResult = calculateAlignment(lastFaceRect, extrapolatedCardRect);
+          const distanceResult = calculateDistance(extrapolatedCardRect);
+          const imageQuality = analyzeImageQuality();
+          
           captureMetrics = {
             mode: mode,
-            timestamp: new Date().toLocaleTimeString(),
             faceRect: { ...lastFaceRect },
             cardRect: { ...extrapolatedCardRect },
-            alignment: calculateAlignment(lastFaceRect, extrapolatedCardRect),
-            distance: calculateDistance(extrapolatedCardRect),
-            brightness: calculateBrightness(),
-            variance: calculateVariance(),
-            cardAngle: calculateCardAngle(extrapolatedCardRect)
+            alignment: alignmentResult.message,
+            distance: distanceResult.message,
+            brightness: imageQuality.brightness,
+            variance: imageQuality.variance,
+            cardAngle: alignmentResult.angle
           };
-          
+
           if (video.readyState === 4) {
             // Récupérer les dimensions et positions actuelles de la vidéo dans le canvas
             const videoRatio = video.videoWidth / video.videoHeight;
             const canvasRatio = canvas.width / canvas.height;
-            let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
-            
+            let drawWidth,
+              drawHeight,
+              offsetX = 0,
+              offsetY = 0;
+
             if (videoRatio > canvasRatio) {
               // La vidéo est plus large que le canvas
               drawHeight = canvas.height;
-              drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
+              drawWidth =
+                video.videoWidth * (canvas.height / video.videoHeight);
               offsetX = (canvas.width - drawWidth) / 2;
             } else {
               // La vidéo est plus haute que le canvas
               drawWidth = canvas.width;
-              drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
+              drawHeight =
+                video.videoHeight * (canvas.width / video.videoWidth);
               offsetY = (canvas.height - drawHeight) / 2;
             }
-            
+
             // Calculer les coordonnées proportionnelles dans la vidéo originale
             const scaleX = video.videoWidth / drawWidth;
             const scaleY = video.videoHeight / drawHeight;
-            
+
             // Ajuster les coordonnées du rectangle par rapport à la vidéo originale
             const sourceX = (lastCardRect.x - offsetX) * scaleX;
             const sourceY = (lastCardRect.y - offsetY) * scaleY;
             const sourceWidth = lastCardRect.width * scaleX;
             const sourceHeight = lastCardRect.height * scaleY;
-            
+
             // Capturer depuis la vidéo avec les coordonnées ajustées
             photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
             photoCtx.drawImage(
@@ -688,17 +698,23 @@
             // Afficher l'écran de photo
             document.getElementById("photoScreen").style.display = "flex";
             photoTaken = true;
-            
+
             // Afficher les métriques de capture
             const metricsDiv = document.getElementById("photoMetrics");
+            
+            // Évaluer la qualité des métriques pour l'affichage
+            const brightnessStatus = captureMetrics.brightness >= BRIGHTNESS_MIN && captureMetrics.brightness <= BRIGHTNESS_MAX ? "Bonne" : 
+                                    captureMetrics.brightness < BRIGHTNESS_MIN ? "Trop sombre" : "Trop claire";
+            
+            const varianceStatus = captureMetrics.variance >= VARIANCE_MIN ? "Bonne" : "Insuffisante";
+            
             metricsDiv.innerHTML = `
               <strong>Mode de capture:</strong> ${captureMetrics.mode === 'auto' ? 'Automatique' : 'Manuel'}<br>
-              <strong>Heure:</strong> ${captureMetrics.timestamp}<br>
               <strong>Alignement visage-carte:</strong> ${captureMetrics.alignment || 'Non mesuré'}<br>
               <strong>Distance caméra-carte:</strong> ${captureMetrics.distance || 'Non mesurée'}<br>
-              <strong>Luminosité:</strong> ${captureMetrics.brightness || 'Non mesurée'}<br>
-              <strong>Netteté:</strong> ${captureMetrics.variance || 'Non mesurée'}<br>
-              <strong>Alignement de la carte:</strong> ${captureMetrics.cardAngle ? captureMetrics.cardAngle + '°' : 'Non mesuré'}
+              <strong>Luminosité:</strong> ${captureMetrics.brightness} (${brightnessStatus})<br>
+              <strong>Netteté:</strong> ${captureMetrics.variance} (${varianceStatus})<br>
+              <strong>Alignement de la carte:</strong> ${captureMetrics.cardAngle ? captureMetrics.cardAngle.toFixed(1) + '°' : 'Non mesuré'}
             `;
 
             console.log("Photo capturée");
@@ -722,10 +738,15 @@
           "Photo validée! Vous pouvez implémenter ici l'action souhaitée (envoi au serveur, etc.)"
         );
       }
-      
+
       // Fonctions pour calculer les métriques
       function calculateAlignment(faceRect, cardRect) {
-        if (!faceRect || !cardRect) return "Non détecté";
+        if (!faceRect || !cardRect) {
+          return {
+            aligned: false,
+            message: "Impossible de vérifier l'alignement"
+          };
+        }
         
         // Calculer les centres
         const faceCenterX = faceRect.x + faceRect.width / 2;
@@ -736,38 +757,97 @@
         const horizontalOffset = Math.abs(faceCenterX - cardCenterX);
         const maxOffset = cardRect.width * 0.1; // 10% de la largeur de la carte
         
-        if (horizontalOffset <= maxOffset) {
-          return "Correct";
+        const isAligned = horizontalOffset <= maxOffset;
+        const angle = 0; // Angle fixe pour cette version simplifiée
+        
+        if (isAligned) {
+          return {
+            aligned: true,
+            angle: angle,
+            message: "Alignement correct"
+          };
         } else if (faceCenterX < cardCenterX) {
-          return "Visage trop à gauche";
+          return {
+            aligned: false,
+            angle: angle,
+            message: "Visage trop à gauche"
+          };
         } else {
-          return "Visage trop à droite";
+          return {
+            aligned: false,
+            angle: angle,
+            message: "Visage trop à droite"
+          };
         }
       }
-      
+
       function calculateDistance(cardRect) {
-        if (!cardRect) return "Non mesurée";
+        if (!cardRect) {
+          return { 
+            correct: false, 
+            message: "Distance indéterminée" 
+          };
+        }
         
-        // Calculer la surface de la carte
+        // Calculer le rectangle guide pour la distance optimale
+        const guideRect = {
+          x: Math.round(canvas.width / 2 - (canvas.width * GUIDE_RECT_FACTOR_WIDTH) / 2),
+          y: Math.round(canvas.height / 2 - (canvas.height * GUIDE_RECT_FACTOR_HEIGHT) / 2),
+          width: Math.round(canvas.width * GUIDE_RECT_FACTOR_WIDTH),
+          height: Math.round(canvas.height * GUIDE_RECT_FACTOR_HEIGHT)
+        };
+        
+        // Calculer l'intersection entre la carte et le guide
+        const intersectionArea = calculateIntersection(cardRect, guideRect);
         const cardArea = cardRect.width * cardRect.height;
+        const guideArea = guideRect.width * guideRect.height;
+        const cardOverlapRatio = intersectionArea / cardArea;
+        const guideOverlapRatio = intersectionArea / guideArea;
         
-        // Calculer la surface idéale (basée sur les dimensions du canvas)
-        const idealWidth = canvas.width * 0.7;
-        const idealHeight = idealWidth / CARD_RATIO;
-        const idealArea = idealWidth * idealHeight;
+        const OVERLAP_THRESHOLD = 0.7; // Seuil de chevauchement pour la distance
         
-        // Comparer les surfaces
-        const ratio = cardArea / idealArea;
-        
-        if (ratio > 0.8 && ratio < 1.2) {
-          return "Distance optimale";
-        } else if (ratio <= 0.8) {
-          return "Trop loin";
+        if (cardOverlapRatio > OVERLAP_THRESHOLD && guideOverlapRatio > 0.5) {
+          return {
+            correct: true,
+            message: "Distance optimale",
+            area: cardArea,
+            overlap: cardOverlapRatio
+          };
+        } else if (cardArea < guideArea * 0.6) {
+          return {
+            correct: false,
+            message: "Trop loin",
+            area: cardArea,
+            overlap: cardOverlapRatio
+          };
+        } else if (cardArea > guideArea * 1.4) {
+          return {
+            correct: false,
+            message: "Trop proche",
+            area: cardArea,
+            overlap: cardOverlapRatio
+          };
         } else {
-          return "Trop proche";
+          return {
+            correct: false,
+            message: "Ajuster la position",
+            area: cardArea,
+            overlap: cardOverlapRatio
+          };
         }
       }
       
+      // Fonction pour calculer l'intersection entre deux rectangles
+      function calculateIntersection(rect1, rect2) {
+        const x1 = Math.max(rect1.x, rect2.x);
+        const y1 = Math.max(rect1.y, rect2.y);
+        const x2 = Math.min(rect1.x + rect1.width, rect2.x + rect2.width);
+        const y2 = Math.min(rect1.y + rect1.height, rect2.y + rect2.height);
+        
+        if (x1 >= x2 || y1 >= y2) return 0;
+        return (x2 - x1) * (y2 - y1);
+      }
+
       function calculateBrightness() {
         try {
           // Créer un canvas temporaire pour l'analyse
@@ -786,26 +866,20 @@
           // Calculer la luminosité moyenne
           let sum = 0;
           for (let i = 0; i < data.length; i += 4) {
-            // Formule standard pour la luminosité: 0.299*R + 0.587*G + 0.114*B
+            // Formule standard pour convertir RGB en luminosité
+            // 0.299 * R + 0.587 * G + 0.114 * B
             sum += (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
           }
           
           const brightness = Math.round(sum / (data.length / 4));
           
-          // Évaluer la luminosité
-          if (brightness > BRIGHTNESS_MIN && brightness < BRIGHTNESS_MAX) {
-            return brightness + " (Bonne)";
-          } else if (brightness <= BRIGHTNESS_MIN) {
-            return brightness + " (Trop sombre)";
-          } else {
-            return brightness + " (Trop claire)";
-          }
+          return brightness;
         } catch (err) {
           console.error("Erreur dans calculateBrightness:", err);
-          return "Non mesurée";
+          return 0;
         }
       }
-      
+
       function calculateVariance() {
         try {
           // Créer un canvas temporaire pour l'analyse
@@ -842,94 +916,108 @@
           
           const variance = Math.round(sumSquaredDiff / grayValues.length);
           
-          // Évaluer la netteté
-          if (variance > VARIANCE_MIN) {
-            return variance + " (Bonne)";
-          } else {
-            return variance + " (Insuffisante)";
-          }
+          return variance;
         } catch (err) {
           console.error("Erreur dans calculateVariance:", err);
-          return "Non mesurée";
+          return 0;
         }
       }
       
+      // Fonction pour analyser la qualité de l'image
+      function analyzeImageQuality() {
+        const brightness = calculateBrightness();
+        const variance = calculateVariance();
+        
+        return {
+          brightness: brightness,
+          variance: variance
+        };
+      }
+
       function calculateCardAngle(cardRect) {
         if (!cardRect) return null;
-        
+
         // Dans cette version simplifiée, nous supposons que la carte est horizontale
         // Une implémentation plus avancée utiliserait OpenCV pour détecter l'angle réel
         return 0;
       }
-      
+
       // Fonctions pour le zoom et le déplacement de l'image
       function openZoomModal() {
         const photoCanvas = document.getElementById("photoCanvas");
         const zoomCanvas = document.getElementById("zoomCanvas");
         const zoomModal = document.getElementById("zoomModal");
-        
+
         // Réinitialiser le zoom et le déplacement
         zoomScale = 1;
         zoomOffsetX = 0;
         zoomOffsetY = 0;
-        
+
         // Définir les dimensions du canvas de zoom
         zoomCanvas.width = window.innerWidth * 0.9;
         zoomCanvas.height = window.innerHeight * 0.7;
-        
+
         // Dessiner l'image sur le canvas de zoom
         const zoomCtx = zoomCanvas.getContext("2d");
         zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
-        zoomCtx.drawImage(photoCanvas, 0, 0, zoomCanvas.width, zoomCanvas.height);
-        
+        zoomCtx.drawImage(
+          photoCanvas,
+          0,
+          0,
+          zoomCanvas.width,
+          zoomCanvas.height
+        );
+
         // Afficher le modal
         zoomModal.style.display = "flex";
       }
-      
+
       function closeZoomModal() {
         document.getElementById("zoomModal").style.display = "none";
       }
-      
+
       function zoomImage(delta) {
         const oldScale = zoomScale;
         zoomScale = Math.max(1, Math.min(5, zoomScale + delta));
-        
+
         // Ajuster le déplacement pour maintenir le centre
         const zoomCanvas = document.getElementById("zoomCanvas");
         const centerX = zoomCanvas.width / 2;
         const centerY = zoomCanvas.height / 2;
-        
-        zoomOffsetX = (zoomOffsetX - centerX) * (zoomScale / oldScale) + centerX;
-        zoomOffsetY = (zoomOffsetY - centerY) * (zoomScale / oldScale) + centerY;
-        
+
+        zoomOffsetX =
+          (zoomOffsetX - centerX) * (zoomScale / oldScale) + centerX;
+        zoomOffsetY =
+          (zoomOffsetY - centerY) * (zoomScale / oldScale) + centerY;
+
         redrawZoomCanvas();
       }
-      
+
       function startDrag(e) {
         isDragging = true;
         lastX = e.clientX;
         lastY = e.clientY;
       }
-      
+
       function drag(e) {
         if (!isDragging) return;
-        
+
         const deltaX = e.clientX - lastX;
         const deltaY = e.clientY - lastY;
-        
+
         zoomOffsetX += deltaX;
         zoomOffsetY += deltaY;
-        
+
         lastX = e.clientX;
         lastY = e.clientY;
-        
+
         redrawZoomCanvas();
       }
-      
+
       function endDrag() {
         isDragging = false;
       }
-      
+
       function startDragTouch(e) {
         if (e.touches.length === 1) {
           isDragging = true;
@@ -937,39 +1025,39 @@
           lastY = e.touches[0].clientY;
         }
       }
-      
+
       function dragTouch(e) {
         if (!isDragging || e.touches.length !== 1) return;
-        
+
         const deltaX = e.touches[0].clientX - lastX;
         const deltaY = e.touches[0].clientY - lastY;
-        
+
         zoomOffsetX += deltaX;
         zoomOffsetY += deltaY;
-        
+
         lastX = e.touches[0].clientX;
         lastY = e.touches[0].clientY;
-        
+
         redrawZoomCanvas();
         e.preventDefault();
       }
-      
+
       function endDragTouch() {
         isDragging = false;
       }
-      
+
       function redrawZoomCanvas() {
         const photoCanvas = document.getElementById("photoCanvas");
         const zoomCanvas = document.getElementById("zoomCanvas");
         const zoomCtx = zoomCanvas.getContext("2d");
-        
+
         // Effacer le canvas
         zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
-        
+
         // Calculer les dimensions et positions pour le zoom
         const scaledWidth = zoomCanvas.width * zoomScale;
         const scaledHeight = zoomCanvas.height * zoomScale;
-        
+
         // Dessiner l'image avec zoom et déplacement
         zoomCtx.save();
         zoomCtx.translate(zoomOffsetX, zoomOffsetY);
@@ -977,7 +1065,8 @@
         zoomCtx.drawImage(
           photoCanvas,
           -zoomCanvas.width / 2 / zoomScale + zoomCanvas.width / 2 / zoomScale,
-          -zoomCanvas.height / 2 / zoomScale + zoomCanvas.height / 2 / zoomScale,
+          -zoomCanvas.height / 2 / zoomScale +
+            zoomCanvas.height / 2 / zoomScale,
           zoomCanvas.width / zoomScale,
           zoomCanvas.height / zoomScale
         );
@@ -1008,7 +1097,11 @@
       async function processVideo() {
         try {
           // Vérifier si la vidéo est en cours de lecture
-          if (video.readyState === video.HAVE_ENOUGH_DATA && openCv && typeof openCv !== 'undefined') {
+          if (
+            video.readyState === video.HAVE_ENOUGH_DATA &&
+            openCv &&
+            typeof openCv !== "undefined"
+          ) {
             // Ajuster le ratio pour maintenir les proportions
             const videoRatio = video.videoWidth / video.videoHeight;
             const canvasRatio = canvas.width / canvas.height;
@@ -1074,8 +1167,29 @@
                   const distanceX = Math.abs(cardCenterX - guideCenterX);
                   const distanceY = Math.abs(cardCenterY - guideCenterY);
 
-                  // Si la carte est bien positionnée, capturer automatiquement
-                  if (distanceX < 50 && distanceY < 50) {
+                  // Vérifier si toutes les métriques sont bonnes avant de capturer automatiquement
+                  const alignmentResult = calculateAlignment(faceRect, cardRect);
+                  const distanceResult = calculateDistance(cardRect);
+                  const imageQuality = analyzeImageQuality();
+                  
+                  // Condition exactement comme dans index.html (card.js)
+                  if (
+                    alignmentResult.aligned &&
+                    distanceResult.correct &&
+                    imageQuality.variance >= VARIANCE_MIN &&
+                    imageQuality.brightness >= BRIGHTNESS_MIN &&
+                    imageQuality.brightness <= BRIGHTNESS_MAX &&
+                    distanceX < 50 && distanceY < 50 &&
+                    autoCaptureEnabled &&
+                    !photoTaken
+                  ) {
+                    console.log("Conditions de capture automatique remplies:", {
+                      alignment: alignmentResult.aligned,
+                      distance: distanceResult.correct,
+                      variance: imageQuality.variance,
+                      brightness: imageQuality.brightness,
+                      position: `X:${distanceX}, Y:${distanceY}`
+                    });
                     capturePhoto('auto');
                   }
                 }
