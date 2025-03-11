@@ -21,6 +21,7 @@ export default defineConfig({
       input: {
         main: "index.html",
         analyse: "analyse.html",
+        mobile: "mobile.html",
       },
     },
   },
