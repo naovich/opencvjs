@@ -460,16 +460,44 @@
         try {
           // Extrapoler le rectangle de la carte
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
-
+          let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
+          
           if (video.readyState === 4) {
-            // Capturer depuis la vidéo
+            // Récupérer les dimensions et positions actuelles de la vidéo dans le canvas
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const canvasRatio = canvas.width / canvas.height;
+            let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
+            
+            if (videoRatio > canvasRatio) {
+              // La vidéo est plus large que le canvas
+              drawHeight = canvas.height;
+              drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
+              offsetX = (canvas.width - drawWidth) / 2;
+            } else {
+              // La vidéo est plus haute que le canvas
+              drawWidth = canvas.width;
+              drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
+              offsetY = (canvas.height - drawHeight) / 2;
+            }
+            
+            // Calculer les coordonnées proportionnelles dans la vidéo originale
+            const scaleX = video.videoWidth / drawWidth;
+            const scaleY = video.videoHeight / drawHeight;
+            
+            // Ajuster les coordonnées du rectangle par rapport à la vidéo originale
+            const sourceX = (lastCardRect.x - offsetX) * scaleX;
+            const sourceY = (lastCardRect.y - offsetY) * scaleY;
+            const sourceWidth = lastCardRect.width * scaleX;
+            const sourceHeight = lastCardRect.height * scaleY;
+            
+            // Capturer depuis la vidéo avec les coordonnées ajustées
             photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
             photoCtx.drawImage(
               video,
-              extrapolatedCardRect.x,
-              extrapolatedCardRect.y,
-              extrapolatedCardRect.width,
-              extrapolatedCardRect.height,
+              Math.max(0, sourceX),
+              Math.max(0, sourceY),
+              Math.min(sourceWidth, video.videoWidth),
+              Math.min(sourceHeight, video.videoHeight),
               0,
               0,
               photoCanvas.width,
