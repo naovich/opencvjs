@@ -79,7 +79,7 @@
         margin: 0 10px;
       }
       #confirmPhoto {
-        background-color: #4CAF50;
+        background-color: #4caf50;
         color: white;
       }
       #retakePhoto {
@@ -89,11 +89,14 @@
     </style>
   </head>
   <body>
-    <div id="loading">Chargement d'OpenCV...<br>Touchez l'écran après le chargement si la caméra ne démarre pas</div>
+    <div id="loading">
+      Chargement d'OpenCV...<br />Touchez l'écran après le chargement si la
+      caméra ne démarre pas
+    </div>
     <canvas id="canvas"></canvas>
     <video id="video" autoplay playsinline muted style="display: none"></video>
     <button id="captureBtn">Prendre la photo</button>
-    
+
     <div id="photoScreen">
       <canvas id="photoCanvas"></canvas>
       <div class="photoButtons">
@@ -112,16 +115,17 @@
       let lastCardRect = null;
       let photoTaken = false;
       let autoCaptureEnabled = true;
-      
+
       // Constantes
       const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
       const CAPTURE_WIDTH = 1280;
       const CAPTURE_HEIGHT = 720;
-      
+
       // Fonction appelée lorsque OpenCV est chargé
-      function onOpenCvReady() {
+      async function onOpenCvReady() {
+        console.log("OpenCV.js est prêt.");
         document.getElementById("loading").style.display = "none";
-        openCv = cv;
+        openCv = await cv;
         initCamera();
       }
 
@@ -137,7 +141,7 @@
         function resizeCanvas() {
           canvas.width = window.innerWidth;
           canvas.height = window.innerHeight;
-          
+
           // Configurer la taille du photoCanvas
           photoCanvas.width = CAPTURE_WIDTH;
           photoCanvas.height = CAPTURE_HEIGHT;
@@ -160,20 +164,21 @@
         // Fonction pour démarrer la vidéo avec interaction utilisateur sur iOS
         function startVideoPlayback() {
           if (video.paused) {
-            video.play()
+            video
+              .play()
               .then(() => {
                 console.log("Lecture vidéo démarrée avec succès");
                 // Retirer l'écouteur d'événement une fois la vidéo démarrée
-                document.removeEventListener('touchend', startVideoPlayback);
+                document.removeEventListener("touchend", startVideoPlayback);
               })
-              .catch(err => {
+              .catch((err) => {
                 console.error("Erreur lors du démarrage de la vidéo:", err);
               });
           }
         }
 
         // Ajouter un écouteur d'événement pour iOS
-        document.addEventListener('touchend', startVideoPlayback);
+        document.addEventListener("touchend", startVideoPlayback);
 
         navigator.mediaDevices
           .getUserMedia(constraints)
@@ -181,15 +186,19 @@
             video.srcObject = stream;
             video.onloadedmetadata = function () {
               // Essayer de démarrer la lecture automatiquement
-              video.play()
+              video
+                .play()
                 .then(() => {
                   console.log("Lecture vidéo démarrée automatiquement");
                 })
-                .catch(e => {
-                  console.log("Lecture automatique impossible, attente d'interaction utilisateur", e);
+                .catch((e) => {
+                  console.log(
+                    "Lecture automatique impossible, attente d'interaction utilisateur",
+                    e
+                  );
                   // L'utilisateur devra toucher l'écran pour démarrer la vidéo sur iOS
                 });
-              
+
               // Commencer le traitement vidéo
               requestAnimationFrame(processVideo);
             };
@@ -200,13 +209,19 @@
               "Impossible d'accéder à la caméra. Veuillez autoriser l'accès à la caméra et recharger la page."
             );
           });
-          
+
         // Configurer les événements pour les boutons
-        document.getElementById("captureBtn").addEventListener("click", capturePhoto);
-        document.getElementById("retakePhoto").addEventListener("click", retakePhoto);
-        document.getElementById("confirmPhoto").addEventListener("click", confirmPhoto);
+        document
+          .getElementById("captureBtn")
+          .addEventListener("click", capturePhoto);
+        document
+          .getElementById("retakePhoto")
+          .addEventListener("click", retakePhoto);
+        document
+          .getElementById("confirmPhoto")
+          .addEventListener("click", confirmPhoto);
       }
-      
+
       // Chargement du classificateur pour la détection de visage
       async function loadFaceClassifier() {
         try {
@@ -227,11 +242,14 @@
           classifier.load("haarcascade_frontalface_default.xml");
           return classifier;
         } catch (error) {
-          console.error("Erreur lors du chargement du classificateur de visage:", error);
+          console.error(
+            "Erreur lors du chargement du classificateur de visage:",
+            error
+          );
           return null;
         }
       }
-      
+
       // Chargement du classificateur pour la détection des yeux
       async function loadEyeClassifier() {
         try {
@@ -250,27 +268,30 @@
           classifier.load("haarcascade_eye.xml");
           return classifier;
         } catch (error) {
-          console.error("Erreur lors du chargement du classificateur des yeux:", error);
+          console.error(
+            "Erreur lors du chargement du classificateur des yeux:",
+            error
+          );
           return null;
         }
       }
-      
+
       // Détection de visage
       async function detectFace(src, gray) {
         if (!faceClassifier) {
           faceClassifier = await loadFaceClassifier();
           if (!faceClassifier) return null;
         }
-        
+
         let faces = new openCv.RectVector();
         faceClassifier.detectMultiScale(gray, faces, 1.3, 5, 0);
-        
+
         let currentFaceRect = null;
         if (faces.size() > 0) {
           // Prendre le plus grand visage ou celui le plus au centre
           let bestFace = null;
           let bestScore = 0;
-          
+
           for (let i = 0; i < faces.size(); i++) {
             let face = faces.get(i);
             let area = face.width * face.height;
@@ -278,24 +299,24 @@
             let centerY = face.y + face.height / 2;
             let distanceFromCenter = Math.sqrt(
               Math.pow(centerX - gray.cols / 2, 2) +
-              Math.pow(centerY - gray.rows / 2, 2)
+                Math.pow(centerY - gray.rows / 2, 2)
             );
             let score = area * (1 - distanceFromCenter / (gray.cols / 2));
-            
+
             if (score > bestScore) {
               bestScore = score;
               bestFace = face;
             }
           }
-          
+
           if (bestFace) {
             currentFaceRect = {
               x: bestFace.x,
               y: bestFace.y,
               width: bestFace.width,
-              height: bestFace.height
+              height: bestFace.height,
             };
-            
+
             // Dessiner le rectangle du visage
             let pt1 = new openCv.Point(currentFaceRect.x, currentFaceRect.y);
             let pt2 = new openCv.Point(
@@ -305,12 +326,12 @@
             openCv.rectangle(src, pt1, pt2, [0, 255, 0, 255], 2);
           }
         }
-        
+
         faces.delete();
         lastFaceRect = currentFaceRect;
         return currentFaceRect;
       }
-      
+
       // Détection des yeux
       async function detectEyes(src, faceRect) {
         if (!faceRect) return [];
@@ -318,14 +339,19 @@
           eyeClassifier = await loadEyeClassifier();
           if (!eyeClassifier) return [];
         }
-        
+
         try {
           let faceROI = src.roi(
-            new openCv.Rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height)
+            new openCv.Rect(
+              faceRect.x,
+              faceRect.y,
+              faceRect.width,
+              faceRect.height
+            )
           );
           let grayFace = new openCv.Mat();
           openCv.cvtColor(faceROI, grayFace, openCv.COLOR_RGBA2GRAY);
-          
+
           let eyes = new openCv.RectVector();
           eyeClassifier.detectMultiScale(
             grayFace,
@@ -335,7 +361,7 @@
             0,
             new openCv.Size(20, 20)
           );
-          
+
           let eyesArray = [];
           for (let i = 0; i < eyes.size(); i++) {
             let eye = eyes.get(i);
@@ -347,20 +373,20 @@
               score: eye.y * 1000 + eye.width * eye.height,
             });
           }
-          
+
           // Trier par position verticale et taille
           eyesArray.sort((a, b) => a.score - b.score);
-          
+
           // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage
           eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
-          
+
           // Garder les deux premiers yeux seulement
           let selectedEyes = eyesArray.slice(0, 2);
-          
+
           // Si on a deux yeux, les trier de gauche à droite
           if (selectedEyes.length === 2) {
             selectedEyes.sort((a, b) => a.x - b.x);
-            
+
             // Dessiner les rectangles des yeux
             selectedEyes.forEach((eye) => {
               let eyeRect = new openCv.Rect(
@@ -376,21 +402,21 @@
               );
               openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
             });
-            
+
             // Dessiner la ligne entre les yeux
             let leftEye = selectedEyes[0];
             let rightEye = selectedEyes[1];
-            
+
             let leftEyeCenter = {
               x: faceRect.x + leftEye.x + leftEye.width / 2,
               y: faceRect.y + leftEye.y + leftEye.height / 2,
             };
-            
+
             let rightEyeCenter = {
               x: faceRect.x + rightEye.x + rightEye.width / 2,
               y: faceRect.y + rightEye.y + rightEye.height / 2,
             };
-            
+
             openCv.line(
               src,
               new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
@@ -399,18 +425,18 @@
               2
             );
           }
-          
+
           eyes.delete();
           grayFace.delete();
           faceROI.delete();
-          
+
           return selectedEyes;
         } catch (err) {
           console.error("Erreur dans detectEyes:", err);
           return [];
         }
       }
-      
+
       // Extrapolation du rectangle de la carte à partir du visage
       function extrapolateCardRectangle(faceRect) {
         const s = 3.2;
@@ -423,18 +449,18 @@
         let cardY = faceCenterY - cardHeight / 2 + offsetY;
         return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
       }
-      
+
       // Capture de la photo
       function capturePhoto() {
         if (!lastFaceRect) {
           console.log("Capture impossible : aucun visage détecté");
           return;
         }
-        
+
         try {
           // Extrapoler le rectangle de la carte
           let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
-          
+
           if (video.readyState === 4) {
             // Capturer depuis la vidéo
             photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
@@ -449,53 +475,55 @@
               photoCanvas.width,
               photoCanvas.height
             );
-            
+
             // Améliorer la qualité de l'image
             photoCtx.filter = "contrast(1.1) brightness(1.05)";
             photoCtx.imageSmoothingEnabled = true;
             photoCtx.imageSmoothingQuality = "high";
-            
+
             // Afficher l'écran de photo
             document.getElementById("photoScreen").style.display = "flex";
             photoTaken = true;
             autoCaptureEnabled = false;
-            
+
             console.log("Photo capturée");
           }
         } catch (err) {
           console.error("Erreur lors de la capture:", err);
         }
       }
-      
+
       // Reprendre la photo
       function retakePhoto() {
         document.getElementById("photoScreen").style.display = "none";
         photoTaken = false;
         autoCaptureEnabled = true;
       }
-      
+
       // Confirmer la photo
       function confirmPhoto() {
-        alert("Photo validée! Vous pouvez implémenter ici l'action souhaitée (envoi au serveur, etc.)");
+        alert(
+          "Photo validée! Vous pouvez implémenter ici l'action souhaitée (envoi au serveur, etc.)"
+        );
       }
-      
+
       // Dessiner le rectangle guide pour la carte
       function drawCardGuide(ctx, width, height) {
         // Calculer les dimensions du rectangle guide
         const guideWidth = width * 0.85; // 85% de la largeur de l'écran
         const guideHeight = guideWidth / CARD_RATIO;
-        
+
         // Calculer la position pour centrer le rectangle
         const guideX = (width - guideWidth) / 2;
         const guideY = (height - guideHeight) / 2;
-        
+
         // Dessiner le rectangle guide
         ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(guideX, guideY, guideWidth, guideHeight);
         ctx.setLineDash([]);
-        
+
         return { x: guideX, y: guideY, width: guideWidth, height: guideHeight };
       }
 
@@ -503,7 +531,7 @@
       async function processVideo() {
         try {
           // Vérifier si la vidéo est en cours de lecture
-          if (video.readyState === video.HAVE_ENOUGH_DATA && openCv) {
+          if (video.readyState === video.HAVE_ENOUGH_DATA && openCv && typeof openCv !== 'undefined') {
             // Ajuster le ratio pour maintenir les proportions
             const videoRatio = video.videoWidth / video.videoHeight;
             const canvasRatio = canvas.width / canvas.height;
@@ -516,35 +544,37 @@
             if (videoRatio > canvasRatio) {
               // La vidéo est plus large que le canvas
               drawHeight = canvas.height;
-              drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
+              drawWidth =
+                video.videoWidth * (canvas.height / video.videoHeight);
               offsetX = (canvas.width - drawWidth) / 2;
             } else {
               // La vidéo est plus haute que le canvas
               drawWidth = canvas.width;
-              drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
+              drawHeight =
+                video.videoHeight * (canvas.width / video.videoWidth);
               offsetY = (canvas.height - drawHeight) / 2;
             }
 
             // Dessiner la vidéo sur le canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
-            
+
             // Dessiner le rectangle guide pour la carte
             const guideRect = drawCardGuide(ctx, canvas.width, canvas.height);
-            
+
             // Traitement OpenCV
             if (!photoTaken) {
               let src = openCv.imread(canvas);
               let gray = new openCv.Mat();
               openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
-              
+
               // Détecter le visage
               const faceRect = await detectFace(src, gray);
-              
+
               if (faceRect) {
                 // Détecter les yeux
                 await detectEyes(src, faceRect);
-                
+
                 // Extrapoler et dessiner le rectangle de la carte
                 const cardRect = extrapolateCardRectangle(faceRect);
                 let pt1 = new openCv.Point(cardRect.x, cardRect.y);
@@ -553,7 +583,7 @@
                   cardRect.y + cardRect.height
                 );
                 openCv.rectangle(src, pt1, pt2, [255, 165, 0, 255], 2);
-                
+
                 // Capture automatique si un visage est détecté
                 if (autoCaptureEnabled && !photoTaken) {
                   // Vérifier si le visage est bien positionné par rapport au guide
@@ -561,17 +591,17 @@
                   const cardCenterY = cardRect.y + cardRect.height / 2;
                   const guideCenterX = guideRect.x + guideRect.width / 2;
                   const guideCenterY = guideRect.y + guideRect.height / 2;
-                  
+
                   const distanceX = Math.abs(cardCenterX - guideCenterX);
                   const distanceY = Math.abs(cardCenterY - guideCenterY);
-                  
+
                   // Si la carte est bien positionnée, capturer automatiquement
                   if (distanceX < 50 && distanceY < 50) {
                     capturePhoto();
                   }
                 }
               }
-              
+
               // Afficher le résultat OpenCV
               openCv.imshow(canvas, src);
               src.delete();
@@ -584,7 +614,11 @@
             ctx.fillStyle = "white";
             ctx.font = "20px Arial";
             ctx.textAlign = "center";
-            ctx.fillText("Touchez l'écran pour activer la caméra", canvas.width / 2, canvas.height / 2);
+            ctx.fillText(
+              "Touchez l'écran pour activer la caméra",
+              canvas.width / 2,
+              canvas.height / 2
+            );
           }
 
           // Continuer la boucle
