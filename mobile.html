@@ -36,9 +36,9 @@
     </style>
   </head>
   <body>
-    <!-- <div id="loading">Chargement d'OpenCV...</div> -->
+    <div id="loading">Chargement d'OpenCV...<br>Touchez l'écran après le chargement si la caméra ne démarre pas</div>
     <canvas id="canvas"></canvas>
-    <video id="video" autoplay style="display: none"></video>
+    <video id="video" autoplay playsinline muted style="display: none"></video>
 
     <script>
       // Variables pour le canvas et la vidéo
@@ -49,7 +49,7 @@
         document.getElementById("loading").style.display = "none";
         initCamera();
       }
-      initCamera();
+
       // Initialisation de la caméra
       function initCamera() {
         video = document.getElementById("video");
@@ -68,6 +68,7 @@
 
         // Accéder à la caméra (préférer la caméra arrière sur mobile)
         const constraints = {
+          audio: false,
           video: {
             facingMode: { ideal: "environment" },
             width: { ideal: 1280 },
@@ -75,11 +76,39 @@
           },
         };
 
+        // Fonction pour démarrer la vidéo avec interaction utilisateur sur iOS
+        function startVideoPlayback() {
+          if (video.paused) {
+            video.play()
+              .then(() => {
+                console.log("Lecture vidéo démarrée avec succès");
+                // Retirer l'écouteur d'événement une fois la vidéo démarrée
+                document.removeEventListener('touchend', startVideoPlayback);
+              })
+              .catch(err => {
+                console.error("Erreur lors du démarrage de la vidéo:", err);
+              });
+          }
+        }
+
+        // Ajouter un écouteur d'événement pour iOS
+        document.addEventListener('touchend', startVideoPlayback);
+
         navigator.mediaDevices
           .getUserMedia(constraints)
           .then(function (stream) {
             video.srcObject = stream;
             video.onloadedmetadata = function () {
+              // Essayer de démarrer la lecture automatiquement
+              video.play()
+                .then(() => {
+                  console.log("Lecture vidéo démarrée automatiquement");
+                })
+                .catch(e => {
+                  console.log("Lecture automatique impossible, attente d'interaction utilisateur", e);
+                  // L'utilisateur devra toucher l'écran pour démarrer la vidéo sur iOS
+                });
+              
               // Commencer le traitement vidéo
               requestAnimationFrame(processVideo);
             };
@@ -94,6 +123,7 @@
 
       // Traitement de la vidéo (simple affichage)
       function processVideo() {
+        // Vérifier si la vidéo est en cours de lecture
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           // Ajuster le ratio pour maintenir les proportions
           const videoRatio = video.videoWidth / video.videoHeight;
@@ -119,6 +149,14 @@
           // Effacer le canvas et dessiner la vidéo
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+        } else {
+          // Si la vidéo n'est pas prête, afficher un message
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "white";
+          ctx.font = "20px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("Touchez l'écran pour activer la caméra", canvas.width / 2, canvas.height / 2);
         }
 
         // Continuer la boucle
@@ -127,6 +165,10 @@
     </script>
 
     <!-- Chargement d'OpenCV.js -->
-    <!--   <script async src="https://docs.opencv.org/4.11.0/opencv.js" onload="onOpenCvReady();"></script> -->
+    <script
+      async
+      src="https://docs.opencv.org/4.11.0/opencv.js"
+      onload="onOpenCvReady();"
+    ></script>
   </body>
 </html>
