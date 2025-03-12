@@ -1,3 +1,5 @@
+// mobile.js
+
 // Variables pour le canvas et la vidéo
 let canvas, ctx, video, photoCanvas, photoCtx;
 let openCv = null;
@@ -11,16 +13,21 @@ let showFace = true;
 let showCard = true;
 let showGuide = true;
 let captureMetrics = {};
+let distanceGuideRect = null; // Ajouté pour la vérification de position
 
 // Constantes pour les métriques
-const BRIGHTNESS_MIN = 50;
-const BRIGHTNESS_MAX = 200;
-const VARIANCE_MIN = 50;
+const BRIGHTNESS_MIN = 50; // Ajouté depuis mobile_updated.js
+const BRIGHTNESS_MAX = 200; // Ajouté depuis mobile_updated.js
+const VARIANCE_MIN = 50; // Ajouté depuis mobile_updated.js
+const SIZE_RATIO_MIN = 0.8; // Ajouté depuis mobile_updated.js (80% minimum de la taille cible)
+const SIZE_RATIO_MAX = 1.0; // Ajouté depuis mobile_updated.js (100% maximum de la taille cible)
 
 // Constantes
 const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
 const CAPTURE_WIDTH = 1280;
 const CAPTURE_HEIGHT = 720;
+
+const EYES_ANGLE_THRESHOLD = 3;
 
 // Fonction appelée lorsque OpenCV est chargé
 async function onOpenCvReady() {
@@ -119,7 +126,6 @@ function initCamera() {
   document
     .getElementById("confirmPhoto")
     .addEventListener("click", confirmPhoto);
-  // Les gestionnaires d'événements liés au zoom ont été supprimés
 
   // Configurer les événements pour les options
   document.getElementById("showFace").addEventListener("change", (e) => {
@@ -260,10 +266,10 @@ async function detectFace(src, gray) {
 
 // Détection des yeux
 async function detectEyes(src, faceRect) {
-  if (!faceRect) return [];
+  if (!faceRect) return { eyeRects: [], angle: null };
   if (!eyeClassifier) {
     eyeClassifier = await loadEyeClassifier();
-    if (!eyeClassifier) return [];
+    if (!eyeClassifier) return { eyeRects: [], angle: null };
   }
 
   try {
@@ -303,12 +309,35 @@ async function detectEyes(src, faceRect) {
 
     // Garder les deux premiers yeux seulement
     let selectedEyes = eyesArray.slice(0, 2);
+    let eyesAngle = null;
 
-    // Si on a deux yeux, les trier de gauche à droite
+    // Si on a deux yeux, les trier de gauche à droite et calculer l'angle
     if (selectedEyes.length === 2) {
       selectedEyes.sort((a, b) => a.x - b.x);
 
-      // Dessiner les rectangles des yeux si l'option d'affichage du visage est activée
+      // Calculer les centres des yeux
+      let leftEye = selectedEyes[0];
+      let rightEye = selectedEyes[1];
+
+      let leftEyeCenter = {
+        x: faceRect.x + leftEye.x + leftEye.width / 2,
+        y: faceRect.y + leftEye.y + leftEye.height / 2,
+      };
+
+      let rightEyeCenter = {
+        x: faceRect.x + rightEye.x + rightEye.width / 2,
+        y: faceRect.y + rightEye.y + rightEye.height / 2,
+      };
+
+      // Calculer l'angle entre les deux yeux (en degrés)
+      eyesAngle =
+        Math.atan2(
+          rightEyeCenter.y - leftEyeCenter.y,
+          rightEyeCenter.x - leftEyeCenter.x
+        ) *
+        (180 / Math.PI);
+
+      // Dessiner les rectangles des yeux si l'option est activée
       if (showFace) {
         selectedEyes.forEach((eye) => {
           let eyeRect = new openCv.Rect(
@@ -324,24 +353,8 @@ async function detectEyes(src, faceRect) {
           );
           openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
         });
-      }
 
-      // Dessiner la ligne entre les yeux
-      let leftEye = selectedEyes[0];
-      let rightEye = selectedEyes[1];
-
-      let leftEyeCenter = {
-        x: faceRect.x + leftEye.x + leftEye.width / 2,
-        y: faceRect.y + leftEye.y + leftEye.height / 2,
-      };
-
-      let rightEyeCenter = {
-        x: faceRect.x + rightEye.x + rightEye.width / 2,
-        y: faceRect.y + rightEye.y + rightEye.height / 2,
-      };
-
-      // Dessiner la ligne entre les yeux si l'option d'affichage du visage est activée
-      if (showFace) {
+        // Dessiner la ligne entre les yeux
         openCv.line(
           src,
           new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
@@ -356,16 +369,16 @@ async function detectEyes(src, faceRect) {
     grayFace.delete();
     faceROI.delete();
 
-    return selectedEyes;
+    return { eyeRects: selectedEyes, angle: eyesAngle };
   } catch (err) {
     console.error("Erreur dans detectEyes:", err);
-    return [];
+    return { eyeRects: [], angle: null };
   }
 }
 
 // Extrapolation du rectangle de la carte à partir du visage
 function extrapolateCardRectangle(faceRect) {
-  const s = 3.2;
+  const s = 2.8;
   const offsetX = -15;
   const offsetY = -10;
   let cardHeight = faceRect.height * s;
@@ -389,7 +402,6 @@ async function capturePhoto(mode = "auto") {
     let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
 
     // Créer un Mat à partir du canvas pour l'analyse de qualité
-    // Utiliser le canvas actuel plutôt que de créer un nouveau Mat directement à partir de la vidéo
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d", {
       willReadFrequently: true,
@@ -593,6 +605,7 @@ function calculateDistance(cardRect) {
   }
 }
 
+// Ajoutée depuis mobile_updated.js
 async function analyzeImageQuality(gray) {
   try {
     // Mesurer la luminosité
@@ -623,14 +636,74 @@ async function analyzeImageQuality(gray) {
   }
 }
 
-// Les fonctions calculateBrightness et calculateVariance ont été remplacées par l'utilisation directe de analyzeImageQuality
-
 function calculateCardAngle(cardRect) {
   if (!cardRect) return null;
 
   // Dans cette version simplifiée, nous supposons que la carte est horizontale
   // Une implémentation plus avancée utiliserait OpenCV pour détecter l'angle réel
   return 0;
+}
+
+// Ajoutée depuis mobile_updated.js
+function calculateIntersection(rect1, rect2) {
+  if (!rect1 || !rect2) return 0;
+
+  const x_overlap = Math.max(
+    0,
+    Math.min(rect1.x + rect1.width, rect2.x + rect2.width) -
+      Math.max(rect1.x, rect2.x)
+  );
+  const y_overlap = Math.max(
+    0,
+    Math.min(rect1.y + rect1.height, rect2.y + rect2.height) -
+      Math.max(rect1.y, rect2.y)
+  );
+
+  return x_overlap * y_overlap;
+}
+
+// Ajoutée depuis mobile_updated.js
+function checkDistance(cardRect) {
+  if (!cardRect || !distanceGuideRect)
+    return { correct: false, message: "Distance indéterminée" };
+
+  // Calculer l'intersection entre le rectangle de la carte et le guide
+  const intersectionArea = calculateIntersection(cardRect, distanceGuideRect);
+  const cardArea = cardRect.width * cardRect.height;
+  const guideArea = distanceGuideRect.width * distanceGuideRect.height;
+
+  // Calculer le pourcentage de recouvrement
+  const cardCoverage = intersectionArea / cardArea;
+  const guideCoverage = intersectionArea / guideArea;
+
+  // Calculer le ratio de taille entre la carte et le guide
+  const sizeRatio = cardArea / guideArea;
+
+  // Vérifier si la taille est dans la bonne plage (80-100%)
+  const isCorrectSize =
+    sizeRatio >= SIZE_RATIO_MIN && sizeRatio <= SIZE_RATIO_MAX;
+
+  // Vérifier si la carte est bien positionnée (au moins 70% de recouvrement)
+  const isWellPositioned = cardCoverage > 0.7 && guideCoverage > 0.7;
+
+  let message = "";
+  if (!isCorrectSize) {
+    if (sizeRatio < SIZE_RATIO_MIN) {
+      message = "Rapprochez la carte";
+    } else {
+      message = "Éloignez la carte";
+    }
+  } else if (!isWellPositioned) {
+    message = "Alignez mieux la carte";
+  } else {
+    message = "Distance correcte";
+  }
+
+  return {
+    correct: isCorrectSize && isWellPositioned,
+    message: message,
+    sizeRatio: sizeRatio,
+  };
 }
 
 // Dessiner le rectangle guide pour la carte
@@ -643,26 +716,30 @@ function drawCardGuide(ctx, width, height) {
   const guideX = (width - guideWidth) / 2;
   const guideY = (height - guideHeight) / 2;
 
+  // Stocker le rectangle guide pour les calculs de distance
+  distanceGuideRect = {
+    x: guideX,
+    y: guideY,
+    width: guideWidth,
+    height: guideHeight,
+  };
+
   // Dessiner le rectangle guide
   ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 5]);
   ctx.strokeRect(guideX, guideY, guideWidth, guideHeight);
   ctx.setLineDash([]);
-
-  return { x: guideX, y: guideY, width: guideWidth, height: guideHeight };
 }
 
-// Traitement de la vidéo avec OpenCV
+// Traitement de la vidéo avec OpenCV (mis à jour avec la logique de capture automatique de mobile_updated.js)
 async function processVideo() {
   try {
-    // Vérifier si la vidéo est en cours de lecture
     if (
       video.readyState === video.HAVE_ENOUGH_DATA &&
       openCv &&
       typeof openCv !== "undefined"
     ) {
-      // Ajuster le ratio pour maintenir les proportions
       const videoRatio = video.videoWidth / video.videoHeight;
       const canvasRatio = canvas.width / canvas.height;
 
@@ -672,36 +749,35 @@ async function processVideo() {
         offsetY = 0;
 
       if (videoRatio > canvasRatio) {
-        // La vidéo est plus large que le canvas
         drawHeight = canvas.height;
         drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
         offsetX = (canvas.width - drawWidth) / 2;
       } else {
-        // La vidéo est plus haute que le canvas
         drawWidth = canvas.width;
         drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
         offsetY = (canvas.height - drawHeight) / 2;
       }
 
-      // Dessiner la vidéo sur le canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
 
-      // Dessiner le rectangle guide pour la carte
       const guideRect = drawCardGuide(ctx, canvas.width, canvas.height);
 
-      // Traitement OpenCV
       if (!photoTaken) {
         let src = openCv.imread(canvas);
         let gray = new openCv.Mat();
         openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
+        // Analyser la qualité de l'image
+        const imageQuality = await analyzeImageQuality(gray);
+
         // Détecter le visage
         const faceRect = await detectFace(src, gray);
 
         if (faceRect) {
-          // Détecter les yeux
-          await detectEyes(src, faceRect);
+          // Détecter les yeux et récupérer l'angle
+          const eyeData = await detectEyes(src, faceRect);
+          const eyesAngle = eyeData.angle;
 
           // Extrapoler et dessiner le rectangle de la carte si l'option est activée
           const cardRect = extrapolateCardRectangle(faceRect);
@@ -714,31 +790,31 @@ async function processVideo() {
             openCv.rectangle(src, pt1, pt2, [255, 165, 0, 255], 2);
           }
 
-          // Capture automatique si un visage est détecté
+          // Capture automatique avec les conditions mises à jour
           if (autoCaptureEnabled && !photoTaken) {
-            // Vérifier si le visage est bien positionné par rapport au guide
-            const cardCenterX = cardRect.x + cardRect.width / 2;
-            const cardCenterY = cardRect.y + cardRect.height / 2;
-            const guideCenterX = guideRect.x + guideRect.width / 2;
-            const guideCenterY = guideRect.y + guideRect.height / 2;
+            const distanceResult = checkDistance(cardRect);
 
-            const distanceX = Math.abs(cardCenterX - guideCenterX);
-            const distanceY = Math.abs(cardCenterY - guideCenterY);
-
-            // Si la carte est bien positionnée, capturer automatiquement
-            if (distanceX < 50 && distanceY < 50) {
+            // Vérifier toutes les conditions, y compris l'angle des yeux
+            if (
+              distanceResult.correct && // Carte bien positionnée et à la bonne taille
+              imageQuality.brightness >= BRIGHTNESS_MIN && // Luminosité acceptable
+              imageQuality.brightness <= BRIGHTNESS_MAX &&
+              imageQuality.variance >= VARIANCE_MIN && // Netteté suffisante
+              eyesAngle !== null &&
+              Math.abs(eyesAngle) < EYES_ANGLE_THRESHOLD // Angle des yeux < 3°
+            ) {
+              console.log("Conditions remplies pour la capture automatique");
+              console.log(`Angle des yeux: ${eyesAngle.toFixed(1)}°`);
               capturePhoto("auto");
             }
           }
         }
 
-        // Afficher le résultat OpenCV
         openCv.imshow(canvas, src);
         src.delete();
         gray.delete();
       }
     } else {
-      // Si la vidéo n'est pas prête, afficher un message
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "white";
@@ -751,7 +827,6 @@ async function processVideo() {
       );
     }
 
-    // Continuer la boucle
     requestAnimationFrame(processVideo);
   } catch (e) {
     console.error("Erreur dans processVideo:", e);

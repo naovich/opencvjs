@@ -6,7 +6,15 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: "src/js/card.js",
+          src: "src/js/desktop.js",
+          dest: "src/js",
+        },
+        {
+          src: "src/js/mobile.js",
+          dest: "src/js",
+        },
+        {
+          src: "src/js/analyse.js",
           dest: "src/js",
         },
         {
