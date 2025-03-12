@@ -50,20 +50,17 @@ const distanceGuideRect = {
   height: Math.round(VIDEO_HEIGHT * GUIDE_RECT_FACTOR_HEIGHT),
 };
 
-// onstantes pour qualité d'image
 const VARIANCE_MIN = 100;
 const BRIGHTNESS_MIN = 50;
 const BRIGHTNESS_MAX = 200;
 
-// Configuration des résolutions
-const CAPTURE_WIDTH = 1280; // Résolution de capture vidéo
-const CAPTURE_HEIGHT = 960; // Résolution de capture vidéo
-const PROCESSING_WIDTH = 640; // Résolution pour le traitement
-const PROCESSING_HEIGHT = 480; // Résolution pour le traitement
-const OUTPUT_WIDTH = 1280; // Résolution de la photo finale
-const OUTPUT_HEIGHT = 960; // Résolution de la photo finale
+const CAPTURE_WIDTH = 1280; 
+const CAPTURE_HEIGHT = 960; 
+const PROCESSING_WIDTH = 640; 
+const PROCESSING_HEIGHT = 480; 
+const OUTPUT_WIDTH = 1280; 
+const OUTPUT_HEIGHT = 960; 
 
-//  le seuil d'alignement des yeux
 const EYES_ALIGNMENT_THRESHOLD = 3;
 
 navigator.mediaDevices
@@ -250,7 +247,7 @@ async function detectFace(src, gray) {
 }
 
 function extrapolateCardRectangle(faceRect) {
-  const s = 3.2;
+  const s = 2.8;
   const offsetX = -15;
   const offsetY = -10;
   let cardHeight = faceRect.height * s;
@@ -320,20 +317,15 @@ async function eyeDetection(src, faceRect) {
       });
     }
 
-    // Trier par position verticale (yeux les plus hauts en premier) et taille
     eyesArray.sort((a, b) => a.score - b.score);
 
-    // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage, c'est pour éliminé par exemple la bouche, car des fois il peut y a voir une mauvaise interprétation
     eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
 
-    // Garder les deux premiers yeux seulement (on fait pour s'assurer de n'avoir que 2 yeux)
     let selectedEyes = eyesArray.slice(0, 2);
 
-    // Si on a deux yeux, les trier de gauche à droite
     if (selectedEyes.length === 2) {
       selectedEyes.sort((a, b) => a.x - b.x);
 
-      // Calculer l'angle entre les deux yeux
       let leftEye = selectedEyes[0];
       let rightEye = selectedEyes[1];
 
@@ -355,7 +347,6 @@ async function eyeDetection(src, faceRect) {
         ) *
         (180 / Math.PI);
 
-      // Pour chaque œil sélectionné, tracer un rectangle sur l'image
       selectedEyes.forEach((eye) => {
         let eyeRect = new openCv.Rect(
           faceRect.x + eye.x,
@@ -618,7 +609,6 @@ function drawCardDetection(src, contours, bestMatchIndex, isHorizontal) {
   }
 }
 
-// Vérifications d'alignement et de distance
 function checkAlignment(faceRect, cardRect, cardAngle, imageIsHorizontal) {
   if (!faceRect || !cardRect)
     return {
@@ -739,11 +729,9 @@ function capturePhoto() {
   }
 
   try {
-    // Calculer un facteur d'échelle entre la résolution de traitement et la résolution de capture
     const scaleX = CAPTURE_WIDTH / PROCESSING_WIDTH;
     const scaleY = CAPTURE_HEIGHT / PROCESSING_HEIGHT;
 
-    // Adapter le rectangle de la carte à la résolution plus haute
     let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
 
     // Ajuster la position verticale pour corriger le décalage vers le bas
@@ -762,7 +750,6 @@ function capturePhoto() {
     };
 
     if (video.readyState === 4) {
-      // Capturer directement depuis la vidéo haute résolution
       photoContext.clearRect(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
       photoContext.drawImage(
         video,
@@ -776,7 +763,6 @@ function capturePhoto() {
         OUTPUT_HEIGHT
       );
 
-      // Appliquer des filtres d'amélioration
       photoContext.filter = "contrast(1.1) brightness(1.05)";
       photoContext.imageSmoothingEnabled = true;
       photoContext.imageSmoothingQuality = "high";
@@ -900,7 +886,6 @@ function updateStatus(
 
 async function processFrame() {
   try {
-    // Redimensionner la vidéo haute résolution vers le canvas de traitement
     context.drawImage(video, 0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
 
     let src = openCv.imread(canvas);
@@ -911,7 +896,6 @@ async function processFrame() {
 
     let faceRect = await detectFace(src, gray);
     if (faceRect) {
-      // Détection des yeux si l'option est activée
       let eyesData = { angle: null, eyeRects: [] };
       if (showEyes) {
         eyesData = await eyeDetection(src, faceRect);
@@ -980,7 +964,6 @@ async function processFrame() {
         );
       }
 
-      // Modifier la condition de capture automatique dans processFrame
       if (
         (useContourDetection ? cardDetection.detected : true) &&
         (useContourDetection ? alignmentResult.aligned : true) &&
@@ -1051,8 +1034,6 @@ async function onOpenCvReady() {
 }
 
 const photoContainer = document.getElementById("photoContainer");
-//photoContainer.style.width = "640px";
-//photoContainer.style.height = "480px";
 photoContainer.style.overflow = "hidden";
 photoContainer.style.border = "1px solid #ccc";
 photoContainer.style.borderRadius = "5px";
@@ -1066,12 +1047,10 @@ photoCanvas.height = OUTPUT_HEIGHT;
 canvas.width = PROCESSING_WIDTH;
 canvas.height = PROCESSING_HEIGHT;
 
-// Gestion du métrique
 const toggleMetrics = document.getElementById("toggleMetrics");
 const metrics = document.querySelector(".metrics");
 metrics.style.display = "none";
 
-// Initialiser le texte du bouton en fonction de l'état initial des métriques
 toggleMetrics.textContent = "Afficher les métriques";
 
 toggleMetrics.addEventListener("click", (e) => {

@@ -1,6 +1,4 @@
-// mobile.js
 
-// Variables pour le canvas et la vidéo
 let canvas, ctx, video, photoCanvas, photoCtx;
 let openCv = null;
 let faceClassifier = null;
@@ -13,23 +11,21 @@ let showFace = true;
 let showCard = true;
 let showGuide = true;
 let captureMetrics = {};
-let distanceGuideRect = null; // Ajouté pour la vérification de position
+let distanceGuideRect = null; 
 
 // Constantes pour les métriques
-const BRIGHTNESS_MIN = 50; // Ajouté depuis mobile_updated.js
-const BRIGHTNESS_MAX = 200; // Ajouté depuis mobile_updated.js
-const VARIANCE_MIN = 50; // Ajouté depuis mobile_updated.js
-const SIZE_RATIO_MIN = 0.8; // Ajouté depuis mobile_updated.js (80% minimum de la taille cible)
-const SIZE_RATIO_MAX = 1.0; // Ajouté depuis mobile_updated.js (100% maximum de la taille cible)
+const BRIGHTNESS_MIN = 50; 
+const BRIGHTNESS_MAX = 200; 
+const VARIANCE_MIN = 50; 
+const SIZE_RATIO_MIN = 0.8; 
+const SIZE_RATIO_MAX = 1.0; 
 
-// Constantes
 const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
 const CAPTURE_WIDTH = 1280;
 const CAPTURE_HEIGHT = 720;
 
 const EYES_ANGLE_THRESHOLD = 3;
 
-// Fonction appelée lorsque OpenCV est chargé
 async function onOpenCvReady() {
   console.log("OpenCV.js est prêt.");
   document.getElementById("loading").style.display = "none";
@@ -37,7 +33,6 @@ async function onOpenCvReady() {
   initCamera();
 }
 
-// Initialisation de la caméra
 function initCamera() {
   video = document.getElementById("video");
   canvas = document.getElementById("canvas");
@@ -45,21 +40,16 @@ function initCamera() {
   photoCanvas = document.getElementById("photoCanvas");
   photoCtx = photoCanvas.getContext("2d");
 
-  // Ajuster la taille du canvas à la fenêtre
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-
-    // Configurer la taille du photoCanvas
     photoCanvas.width = CAPTURE_WIDTH;
     photoCanvas.height = CAPTURE_HEIGHT;
   }
 
-  // Appeler resizeCanvas au chargement et au redimensionnement
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
 
-  // Accéder à la caméra (préférer la caméra arrière sur mobile)
   const constraints = {
     audio: false,
     video: {
@@ -69,14 +59,12 @@ function initCamera() {
     },
   };
 
-  // Fonction pour démarrer la vidéo avec interaction utilisateur sur iOS
   function startVideoPlayback() {
     if (video.paused) {
       video
         .play()
         .then(() => {
           console.log("Lecture vidéo démarrée avec succès");
-          // Retirer l'écouteur d'événement une fois la vidéo démarrée
           document.removeEventListener("touchend", startVideoPlayback);
         })
         .catch((err) => {
@@ -85,7 +73,6 @@ function initCamera() {
     }
   }
 
-  // Ajouter un écouteur d'événement pour iOS
   document.addEventListener("touchend", startVideoPlayback);
 
   navigator.mediaDevices
@@ -93,7 +80,6 @@ function initCamera() {
     .then(function (stream) {
       video.srcObject = stream;
       video.onloadedmetadata = function () {
-        // Essayer de démarrer la lecture automatiquement
         video
           .play()
           .then(() => {
@@ -104,10 +90,8 @@ function initCamera() {
               "Lecture automatique impossible, attente d'interaction utilisateur",
               e
             );
-            // L'utilisateur devra toucher l'écran pour démarrer la vidéo sur iOS
           });
 
-        // Commencer le traitement vidéo
         requestAnimationFrame(processVideo);
       };
     })
@@ -118,7 +102,6 @@ function initCamera() {
       );
     });
 
-  // Configurer les événements pour les boutons
   document
     .getElementById("captureBtn")
     .addEventListener("click", () => capturePhoto("manuel"));
@@ -127,7 +110,6 @@ function initCamera() {
     .getElementById("confirmPhoto")
     .addEventListener("click", confirmPhoto);
 
-  // Configurer les événements pour les options
   document.getElementById("showFace").addEventListener("change", (e) => {
     showFace = e.target.checked;
   });
@@ -152,7 +134,6 @@ function initCamera() {
   zoomCanvas.addEventListener("touchend", endDragTouch);
 }
 
-// Chargement du classificateur pour la détection de visage
 async function loadFaceClassifier() {
   try {
     const response = await fetch(
@@ -180,7 +161,6 @@ async function loadFaceClassifier() {
   }
 }
 
-// Chargement du classificateur pour la détection des yeux
 async function loadEyeClassifier() {
   try {
     const response = await fetch("src/classifiers/haarcascade_eye.xml");
@@ -206,7 +186,6 @@ async function loadEyeClassifier() {
   }
 }
 
-// Détection de visage
 async function detectFace(src, gray) {
   if (!faceClassifier) {
     faceClassifier = await loadFaceClassifier();
@@ -264,7 +243,6 @@ async function detectFace(src, gray) {
   return currentFaceRect;
 }
 
-// Détection des yeux
 async function detectEyes(src, faceRect) {
   if (!faceRect) return { eyeRects: [], angle: null };
   if (!eyeClassifier) {
@@ -389,7 +367,6 @@ function extrapolateCardRectangle(faceRect) {
   return { x: cardX, y: cardY, width: cardWidth, height: cardHeight };
 }
 
-// Capture de la photo
 async function capturePhoto(mode = "auto") {
   if (!lastFaceRect) {
     console.log("Capture impossible : aucun visage détecté");
@@ -397,11 +374,9 @@ async function capturePhoto(mode = "auto") {
   }
 
   try {
-    // Extrapoler le rectangle de la carte
     let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
     let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
 
-    // Créer un Mat à partir du canvas pour l'analyse de qualité
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d", {
       willReadFrequently: true,
@@ -410,21 +385,16 @@ async function capturePhoto(mode = "auto") {
     tempCanvas.height = video.videoHeight;
     tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
 
-    // Convertir le canvas en Mat
     const src = openCv.imread(tempCanvas);
 
-    // Convertir en niveaux de gris
     const gray = new openCv.Mat();
     openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
-    // Analyser la qualité de l'image
     const imageQuality = await analyzeImageQuality(gray);
 
-    // Libérer la mémoire
     src.delete();
     gray.delete();
 
-    // Évaluer la luminosité
     let brightnessEvaluation;
     if (
       imageQuality.brightness > BRIGHTNESS_MIN &&
@@ -437,7 +407,6 @@ async function capturePhoto(mode = "auto") {
       brightnessEvaluation = imageQuality.brightness + " (Trop claire)";
     }
 
-    // Évaluer la netteté
     let varianceEvaluation;
     if (imageQuality.variance > VARIANCE_MIN) {
       varianceEvaluation = imageQuality.variance + " (Bonne)";
@@ -445,7 +414,6 @@ async function capturePhoto(mode = "auto") {
       varianceEvaluation = imageQuality.variance + " (Insuffisante)";
     }
 
-    // Enregistrer les métriques de capture
     captureMetrics = {
       mode: mode,
       timestamp: new Date().toLocaleTimeString(),
@@ -468,12 +436,10 @@ async function capturePhoto(mode = "auto") {
         offsetY = 0;
 
       if (videoRatio > canvasRatio) {
-        // La vidéo est plus large que le canvas
         drawHeight = canvas.height;
         drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
         offsetX = (canvas.width - drawWidth) / 2;
       } else {
-        // La vidéo est plus haute que le canvas
         drawWidth = canvas.width;
         drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
         offsetY = (canvas.height - drawHeight) / 2;
@@ -508,11 +474,9 @@ async function capturePhoto(mode = "auto") {
       photoCtx.imageSmoothingEnabled = true;
       photoCtx.imageSmoothingQuality = "high";
 
-      // Afficher l'écran de photo
       document.getElementById("photoScreen").style.display = "flex";
       photoTaken = true;
 
-      // Afficher les métriques de capture
       const metricsDiv = document.getElementById("photoMetrics");
       metricsDiv.innerHTML = `
               <strong>Mode de capture:</strong> ${
@@ -545,31 +509,25 @@ async function capturePhoto(mode = "auto") {
   }
 }
 
-// Reprendre la photo
 function retakePhoto() {
   document.getElementById("photoScreen").style.display = "none";
   photoTaken = false;
-  // Restaurer l'état de la capture automatique en fonction de la checkbox
   autoCaptureEnabled = document.getElementById("autoCapture").checked;
 }
 
-// Confirmer la photo
 function confirmPhoto() {
   alert(
     "Photo validée! Vous pouvez implémenter ici l'action souhaitée (envoi au serveur, etc.)"
   );
 }
 
-// Fonctions pour calculer les métriques
 function calculateAlignment(faceRect, cardRect) {
   if (!faceRect || !cardRect) return "Non détecté";
 
-  // Calculer les centres
   const faceCenterX = faceRect.x + faceRect.width / 2;
   const faceCenterY = faceRect.y + faceRect.height / 2;
   const cardCenterX = cardRect.x + cardRect.width / 2;
 
-  // Vérifier si le visage est centré horizontalement dans la carte
   const horizontalOffset = Math.abs(faceCenterX - cardCenterX);
   const maxOffset = cardRect.width * 0.1; // 10% de la largeur de la carte
 
@@ -585,15 +543,12 @@ function calculateAlignment(faceRect, cardRect) {
 function calculateDistance(cardRect) {
   if (!cardRect) return "Non mesurée";
 
-  // Calculer la surface de la carte
   const cardArea = cardRect.width * cardRect.height;
 
-  // Calculer la surface idéale (basée sur les dimensions du canvas)
   const idealWidth = canvas.width * 0.7;
   const idealHeight = idealWidth / CARD_RATIO;
   const idealArea = idealWidth * idealHeight;
 
-  // Comparer les surfaces
   const ratio = cardArea / idealArea;
 
   if (ratio > 0.8 && ratio < 1.2) {
@@ -605,16 +560,13 @@ function calculateDistance(cardRect) {
   }
 }
 
-// Ajoutée depuis mobile_updated.js
 async function analyzeImageQuality(gray) {
   try {
-    // Mesurer la luminosité
     let brightnessMean = new openCv.Mat();
     let brightnessStdDev = new openCv.Mat();
     openCv.meanStdDev(gray, brightnessMean, brightnessStdDev);
     let brightness = Math.round(brightnessMean.data64F[0]);
 
-    // Mesurer la netteté avec Laplacian
     let laplacian = new openCv.Mat();
     openCv.Laplacian(gray, laplacian, openCv.CV_64F);
     let mean = new openCv.Mat();
@@ -622,7 +574,6 @@ async function analyzeImageQuality(gray) {
     openCv.meanStdDev(laplacian, mean, stdDev);
     let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
 
-    // Libérer la mémoire
     brightnessMean.delete();
     brightnessStdDev.delete();
     laplacian.delete();
@@ -639,12 +590,11 @@ async function analyzeImageQuality(gray) {
 function calculateCardAngle(cardRect) {
   if (!cardRect) return null;
 
-  // Dans cette version simplifiée, nous supposons que la carte est horizontale
-  // Une implémentation plus avancée utiliserait OpenCV pour détecter l'angle réel
+  // On suppose que la carte est horizontale
+  //TODO
   return 0;
 }
 
-// Ajoutée depuis mobile_updated.js
 function calculateIntersection(rect1, rect2) {
   if (!rect1 || !rect2) return 0;
 
@@ -662,28 +612,22 @@ function calculateIntersection(rect1, rect2) {
   return x_overlap * y_overlap;
 }
 
-// Ajoutée depuis mobile_updated.js
 function checkDistance(cardRect) {
   if (!cardRect || !distanceGuideRect)
     return { correct: false, message: "Distance indéterminée" };
 
-  // Calculer l'intersection entre le rectangle de la carte et le guide
   const intersectionArea = calculateIntersection(cardRect, distanceGuideRect);
   const cardArea = cardRect.width * cardRect.height;
   const guideArea = distanceGuideRect.width * distanceGuideRect.height;
 
-  // Calculer le pourcentage de recouvrement
   const cardCoverage = intersectionArea / cardArea;
   const guideCoverage = intersectionArea / guideArea;
 
-  // Calculer le ratio de taille entre la carte et le guide
   const sizeRatio = cardArea / guideArea;
 
-  // Vérifier si la taille est dans la bonne plage (80-100%)
   const isCorrectSize =
     sizeRatio >= SIZE_RATIO_MIN && sizeRatio <= SIZE_RATIO_MAX;
 
-  // Vérifier si la carte est bien positionnée (au moins 70% de recouvrement)
   const isWellPositioned = cardCoverage > 0.7 && guideCoverage > 0.7;
 
   let message = "";
@@ -706,17 +650,13 @@ function checkDistance(cardRect) {
   };
 }
 
-// Dessiner le rectangle guide pour la carte
 function drawCardGuide(ctx, width, height) {
-  // Calculer les dimensions du rectangle guide
-  const guideWidth = width * 0.85; // 85% de la largeur de l'écran
+  const guideWidth = width * 0.85; 
   const guideHeight = guideWidth / CARD_RATIO;
 
-  // Calculer la position pour centrer le rectangle
   const guideX = (width - guideWidth) / 2;
   const guideY = (height - guideHeight) / 2;
 
-  // Stocker le rectangle guide pour les calculs de distance
   distanceGuideRect = {
     x: guideX,
     y: guideY,
@@ -724,7 +664,6 @@ function drawCardGuide(ctx, width, height) {
     height: guideHeight,
   };
 
-  // Dessiner le rectangle guide
   ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 5]);
@@ -732,7 +671,6 @@ function drawCardGuide(ctx, width, height) {
   ctx.setLineDash([]);
 }
 
-// Traitement de la vidéo avec OpenCV (mis à jour avec la logique de capture automatique de mobile_updated.js)
 async function processVideo() {
   try {
     if (
@@ -768,18 +706,12 @@ async function processVideo() {
         let gray = new openCv.Mat();
         openCv.cvtColor(src, gray, openCv.COLOR_RGBA2GRAY);
 
-        // Analyser la qualité de l'image
         const imageQuality = await analyzeImageQuality(gray);
-
-        // Détecter le visage
         const faceRect = await detectFace(src, gray);
 
         if (faceRect) {
-          // Détecter les yeux et récupérer l'angle
           const eyeData = await detectEyes(src, faceRect);
           const eyesAngle = eyeData.angle;
-
-          // Extrapoler et dessiner le rectangle de la carte si l'option est activée
           const cardRect = extrapolateCardRectangle(faceRect);
           if (showCard) {
             let pt1 = new openCv.Point(cardRect.x, cardRect.y);
@@ -790,18 +722,16 @@ async function processVideo() {
             openCv.rectangle(src, pt1, pt2, [255, 165, 0, 255], 2);
           }
 
-          // Capture automatique avec les conditions mises à jour
           if (autoCaptureEnabled && !photoTaken) {
             const distanceResult = checkDistance(cardRect);
 
-            // Vérifier toutes les conditions, y compris l'angle des yeux
             if (
-              distanceResult.correct && // Carte bien positionnée et à la bonne taille
-              imageQuality.brightness >= BRIGHTNESS_MIN && // Luminosité acceptable
+              distanceResult.correct && 
+              imageQuality.brightness >= BRIGHTNESS_MIN && 
               imageQuality.brightness <= BRIGHTNESS_MAX &&
-              imageQuality.variance >= VARIANCE_MIN && // Netteté suffisante
+              imageQuality.variance >= VARIANCE_MIN && 
               eyesAngle !== null &&
-              Math.abs(eyesAngle) < EYES_ANGLE_THRESHOLD // Angle des yeux < 3°
+              Math.abs(eyesAngle) < EYES_ANGLE_THRESHOLD 
             ) {
               console.log("Conditions remplies pour la capture automatique");
               console.log(`Angle des yeux: ${eyesAngle.toFixed(1)}°`);
