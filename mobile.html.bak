@@ -172,10 +172,7 @@
       </div>
     </div>
 
-    <script></script>
-
-    <!-- Chargement d'OpenCV.js -->
-    <script src="src/js/mobile.js"></script>
+    <script src="src/js/mobile_final_fixed4.js"></script>
     <script
       async
       src="https://docs.opencv.org/4.11.0/opencv.js"

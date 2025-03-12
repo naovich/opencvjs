@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Analyse d'images multiples</title>
-    <link rel="stylesheet" href="src/style.css">
+    <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
     <nav class="nav-menu">
@@ -15,417 +15,36 @@
         </ul>
       </div>
     </nav>
-    
+
     <div class="wrapper">
       <h1>Analyse d'images multiples</h1>
       <div class="upload-section section">
         <div class="section-header">Analyse d'images</div>
         <div class="section-content">
           <input type="file" id="imageInput" multiple accept="image/*" />
-          
+
           <div class="checkboxes">
             <label>
-              <input type="checkbox" id="showFaceRect" checked /> 
+              <input type="checkbox" id="showFaceRect" checked />
               Afficher le rectangle du visage
             </label>
             <label>
-              <input type="checkbox" id="showEyesRect" checked /> 
+              <input type="checkbox" id="showEyesRect" checked />
               Afficher les rectangles des yeux
             </label>
           </div>
-          
+
           <button id="analyzeButton" disabled>Analyser les images</button>
         </div>
       </div>
       <div id="containerAnalyse" class="containerAnalyse"></div>
     </div>
+    <script src="src/js/analyse.js"></script>
 
     <script
       async
       src="https://docs.opencv.org/4.11.0/opencv.js"
       onload="onOpenCvReady();"
     ></script>
-    <script>
-      // Constantes pour l'analyse
-      const PROCESSING_WIDTH = 640;
-      const PROCESSING_HEIGHT = 480;
-      const VARIANCE_MIN = 100;
-      const BRIGHTNESS_MIN = 50;
-      const BRIGHTNESS_MAX = 300;
-      const EYES_ALIGNMENT_THRESHOLD = 6;
-
-      // Gestion de l'état du bouton d'analyse
-      const imageInput = document.getElementById("imageInput");
-      const analyzeButton = document.getElementById("analyzeButton");
-      
-      // Désactiver le bouton par défaut (aucune image sélectionnée au démarrage)
-      analyzeButton.disabled = true;
-      
-      // Mettre à jour l'état du bouton lorsque la sélection d'images change
-      imageInput.addEventListener("change", function() {
-        analyzeButton.disabled = this.files.length === 0;
-      });
-
-      // Chargement du classificateur de visage
-      async function loadCascadeClassifier() {
-        const response = await fetch(
-          "src/classifiers/haarcascade_frontalface_default.xml"
-        );
-        const buffer = await response.arrayBuffer();
-        const data = new Uint8Array(buffer);
-        cv.FS_createDataFile(
-          "/",
-          "haarcascade_frontalface_default.xml",
-          data,
-          true,
-          false,
-          false
-        );
-        let classifier = new cv.CascadeClassifier();
-        classifier.load("haarcascade_frontalface_default.xml");
-        return classifier;
-      }
-
-      // Chargement du classificateur des yeux
-      async function loadEyeCascadeClassifier() {
-        const response = await fetch("src/classifiers/haarcascade_eye.xml");
-        const buffer = await response.arrayBuffer();
-        const data = new Uint8Array(buffer);
-        cv.FS_createDataFile(
-          "/",
-          "haarcascade_eye.xml",
-          data,
-          true,
-          false,
-          false
-        );
-        let classifier = new cv.CascadeClassifier();
-        classifier.load("haarcascade_eye.xml");
-        return classifier;
-      }
-
-      // Détection du visage
-      async function detectFace(src, gray) {
-        if (!window.faceClassifier) {
-          window.faceClassifier = await loadCascadeClassifier();
-        }
-        let faces = new cv.RectVector();
-        window.faceClassifier.detectMultiScale(gray, faces, 1.3, 7, 0);
-        if (faces.size() > 0) {
-          let bestFace = faces.get(0);
-          return {
-            x: bestFace.x,
-            y: bestFace.y,
-            width: bestFace.width,
-            height: bestFace.height,
-          };
-        }
-        return null;
-      }
-
-      // Détection des yeux
-      async function eyeDetection(src, faceRect) {
-        if (!faceRect) return { angle: null, eyeRects: [] };
-        let faceROI = src.roi(
-          new cv.Rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height)
-        );
-        let grayFace = new cv.Mat();
-        cv.cvtColor(faceROI, grayFace, cv.COLOR_RGBA2GRAY);
-        if (!window.eyeClassifier) {
-          window.eyeClassifier = await loadEyeCascadeClassifier();
-        }
-        let eyes = new cv.RectVector();
-        window.eyeClassifier.detectMultiScale(
-          grayFace,
-          eyes,
-          1.1,
-          5,
-          0,
-          new cv.Size(20, 20)
-        );
-        let eyesArray = [];
-        for (let i = 0; i < eyes.size(); i++) {
-          let eye = eyes.get(i);
-          eyesArray.push({
-            x: eye.x,
-            y: eye.y,
-            width: eye.width,
-            height: eye.height,
-            score: eye.y * 1000 + eye.width * eye.height,
-          });
-        }
-        eyesArray.sort((a, b) => a.score - b.score);
-        eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
-        let selectedEyes = eyesArray.slice(0, 2);
-        if (selectedEyes.length === 2) {
-          selectedEyes.sort((a, b) => a.x - b.x);
-          let leftEye = selectedEyes[0];
-          let rightEye = selectedEyes[1];
-          let leftEyeCenter = {
-            x: faceRect.x + leftEye.x + leftEye.width / 2,
-            y: faceRect.y + leftEye.y + leftEye.height / 2,
-          };
-          let rightEyeCenter = {
-            x: faceRect.x + rightEye.x + rightEye.width / 2,
-            y: faceRect.y + rightEye.y + rightEye.height / 2,
-          };
-          let eyesAngle =
-            Math.atan2(
-              rightEyeCenter.y - leftEyeCenter.y,
-              rightEyeCenter.x - leftEyeCenter.x
-            ) *
-            (180 / Math.PI);
-          return { angle: eyesAngle, eyeRects: selectedEyes };
-        }
-        return { angle: null, eyeRects: [] };
-      }
-
-      // Analyse de la qualité de l'image
-      async function analyzeImageQuality(gray) {
-        let brightnessMean = new cv.Mat();
-        let brightnessStdDev = new cv.Mat();
-        cv.meanStdDev(gray, brightnessMean, brightnessStdDev);
-        let brightness = Math.round(brightnessMean.data64F[0]);
-        let laplacian = new cv.Mat();
-        cv.Laplacian(gray, laplacian, cv.CV_64F);
-        let mean = new cv.Mat();
-        let stdDev = new cv.Mat();
-        cv.meanStdDev(laplacian, mean, stdDev);
-        let variance = Math.round(stdDev.data64F[0] * stdDev.data64F[0]);
-        brightnessMean.delete();
-        brightnessStdDev.delete();
-        laplacian.delete();
-        mean.delete();
-        stdDev.delete();
-        return { variance, brightness };
-      }
-
-      // Fonction principale d'analyse d'image
-      async function analyzeImage(imageSrc) {
-        const img = new Image();
-        img.src = imageSrc;
-        await new Promise((resolve) => (img.onload = resolve));
-        
-        // Créer un canvas avec une taille fixe
-        const canvas = document.createElement("canvas");
-        canvas.width = PROCESSING_WIDTH;
-        canvas.height = PROCESSING_HEIGHT;
-        const context = canvas.getContext("2d");
-        
-        // Remplir le canvas avec du blanc
-        context.fillStyle = "white";
-        context.fillRect(0, 0, PROCESSING_WIDTH, PROCESSING_HEIGHT);
-        
-        // Calculer les dimensions pour préserver les proportions
-        const imgRatio = img.width / img.height;
-        const canvasRatio = PROCESSING_WIDTH / PROCESSING_HEIGHT;
-        
-        let drawWidth, drawHeight, offsetX, offsetY;
-        
-        if (imgRatio > canvasRatio) {
-          // L'image est plus large que le canvas (proportionnellement)
-          drawWidth = PROCESSING_WIDTH;
-          drawHeight = PROCESSING_WIDTH / imgRatio;
-          offsetX = 0;
-          offsetY = (PROCESSING_HEIGHT - drawHeight) / 2;
-        } else {
-          // L'image est plus haute que le canvas (proportionnellement)
-          drawHeight = PROCESSING_HEIGHT;
-          drawWidth = PROCESSING_HEIGHT * imgRatio;
-          offsetX = (PROCESSING_WIDTH - drawWidth) / 2;
-          offsetY = 0;
-        }
-        
-        // Dessiner l'image centrée dans le canvas
-        context.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-        
-        // Créer une copie du canvas pour le traitement OpenCV
-        const processingCanvas = document.createElement("canvas");
-        processingCanvas.width = PROCESSING_WIDTH;
-        processingCanvas.height = PROCESSING_HEIGHT;
-        processingCanvas.getContext("2d").drawImage(canvas, 0, 0);
-        
-        let src = cv.imread(processingCanvas);
-        let gray = new cv.Mat();
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-        const imageQuality = await analyzeImageQuality(gray);
-        const faceRect = await detectFace(src, gray);
-        let eyesData = { angle: null, eyeRects: [] };
-        if (faceRect) {
-          eyesData = await eyeDetection(src, faceRect);
-        }
-        const isImageQualityGood =
-          imageQuality.variance >= VARIANCE_MIN &&
-          imageQuality.brightness >= BRIGHTNESS_MIN &&
-          imageQuality.brightness <= BRIGHTNESS_MAX;
-        const isEyesAligned =
-          eyesData.angle !== null &&
-          Math.abs(eyesData.angle) < EYES_ALIGNMENT_THRESHOLD;
-        const globalStatus =
-          isImageQualityGood && faceRect && isEyesAligned
-            ? "Valide"
-            : "Invalide";
-
-        // Vérifier les options des cases à cocher
-        const showFaceRect = document.getElementById("showFaceRect").checked;
-        const showEyesRect = document.getElementById("showEyesRect").checked;
-
-        // Dessiner le rectangle du visage si activé
-        if (showFaceRect && faceRect) {
-          cv.rectangle(
-            src,
-            new cv.Point(faceRect.x, faceRect.y),
-            new cv.Point(
-              faceRect.x + faceRect.width,
-              faceRect.y + faceRect.height
-            ),
-            [255, 0, 0, 255], // Rouge
-            2
-          );
-        }
-
-        // Dessiner les rectangles des yeux si activé
-        if (showEyesRect && eyesData.eyeRects.length === 2) {
-          eyesData.eyeRects.forEach((eye) => {
-            cv.rectangle(
-              src,
-              new cv.Point(faceRect.x + eye.x, faceRect.y + eye.y),
-              new cv.Point(
-                faceRect.x + eye.x + eye.width,
-                faceRect.y + eye.y + eye.height
-              ),
-              [0, 255, 0, 255], // Vert
-              2
-            );
-          });
-        }
-
-        // Convertir l'image modifiée en canvas
-        cv.imshow(canvas, src);
-        src.delete();
-        gray.delete();
-
-        return {
-          faceDetected: !!faceRect,
-          eyesDetected: eyesData.eyeRects.length === 2,
-          eyesAligned: isEyesAligned,
-          brightness: imageQuality.brightness,
-          variance: imageQuality.variance,
-          globalStatus: globalStatus,
-          eyesAngle:
-            eyesData.angle !== null ? eyesData.angle.toFixed(1) : "Non détecté",
-          canvas: canvas, // Retourner le canvas pour affichage
-        };
-      }
-
-      // Gestion du clic sur le bouton d'analyse
-      document
-        .getElementById("analyzeButton")
-        .addEventListener("click", async () => {
-          const files = document.getElementById("imageInput").files;
-          const resultsContainer = document.getElementById("containerAnalyse");
-          resultsContainer.innerHTML = "";
-
-          if (files.length === 0) {
-            alert("Veuillez sélectionner au moins une image.");
-            return;
-          }
-
-          for (const file of files) {
-            const imageSrc = URL.createObjectURL(file);
-            const analysis = await analyzeImage(imageSrc);
-
-            const imageSection = document.createElement("div");
-            imageSection.className = "image-section";
-
-            // Partie gauche : Afficher le canvas avec les rectangles
-            const leftSection = document.createElement("div");
-            leftSection.className = "left-section";
-            leftSection.appendChild(analysis.canvas);
-
-            // Partie droite : Afficher les résultats
-            const rightSection = document.createElement("div");
-            rightSection.className = "right-section";
-            rightSection.innerHTML = `
-            <h3>Résultats pour ${file.name}</h3>
-            <div class="metrics">
-                <div class="metric-row">
-                    <span>Visage détecté :</span>
-                    <span class="${
-                      analysis.faceDetected ? "status-good" : "status-bad"
-                    }">
-                        ${analysis.faceDetected ? "Oui" : "Non"}
-                    </span>
-                </div>
-                <div class="metric-row">
-                    <span>Yeux détectés :</span>
-                    <span class="${
-                      analysis.eyesDetected ? "status-good" : "status-bad"
-                    }">
-                        ${analysis.eyesDetected ? "Oui" : "Non"}
-                    </span>
-                </div>
-                <div class="metric-row">
-                    <span>Alignement des yeux :</span>
-                    <span class="${
-                      analysis.eyesAligned ? "status-good" : "status-warning"
-                    }">
-                        ${
-                          analysis.eyesAligned
-                            ? "Correct (" + analysis.eyesAngle + "°)"
-                            : "Incorrect (" + analysis.eyesAngle + "°)"
-                        }
-                    </span>
-                </div>
-                <div class="metric-row">
-                    <span>Luminosité :</span>
-                    <span class="${
-                      analysis.brightness >= BRIGHTNESS_MIN &&
-                      analysis.brightness <= BRIGHTNESS_MAX
-                        ? "status-good"
-                        : "status-warning"
-                    }">
-                        ${analysis.brightness}
-                    </span>
-                </div>
-                <div class="metric-row">
-                    <span>Flou (variance) :</span>
-                    <span class="${
-                      analysis.variance >= VARIANCE_MIN
-                        ? "status-good"
-                        : "status-warning"
-                    }">
-                        ${analysis.variance}
-                    </span>
-                </div>
-                <div class="metric-row">
-                    <span>Statut global :</span>
-                    <span class="${
-                      analysis.globalStatus === "Valide"
-                        ? "status-good"
-                        : "status-bad"
-                    }">
-                        ${analysis.globalStatus}
-                    </span>
-                </div>
-            </div>
-          `;
-
-            imageSection.appendChild(leftSection);
-            imageSection.appendChild(rightSection);
-            resultsContainer.appendChild(imageSection);
-          }
-        });
-
-
-      // Initialisation d'OpenCV
-      async function onOpenCvReady() {
-        console.log("OpenCV.js est prêt.");
-        window.cv = await cv;
-      }
-
-      // toujours afficher les metriques
-      metrics.style.display = "block";
-    </script>
   </body>
 </html>
