@@ -200,7 +200,7 @@ async function analyzeImage(imageSrc) {
       src,
       new cv.Point(faceRect.x, faceRect.y),
       new cv.Point(faceRect.x + faceRect.width, faceRect.y + faceRect.height),
-      [255, 0, 0, 255], 
+      [255, 0, 0, 255],
       2
     );
   }
@@ -233,7 +233,7 @@ async function analyzeImage(imageSrc) {
     globalStatus: globalStatus,
     eyesAngle:
       eyesData.angle !== null ? eyesData.angle.toFixed(1) : "Non détecté",
-    canvas: canvas, 
+    canvas: canvas,
   };
 }
 
@@ -280,7 +280,7 @@ document.getElementById("analyzeButton").addEventListener("click", async () => {
                     </span>
                 </div>
                 <div class="metric-row">
-                    <span>Alignement des yeux :</span>
+                    <span>Alignement :</span>
                     <span class="${
                       analysis.eyesAligned ? "status-good" : "status-warning"
                     }">
