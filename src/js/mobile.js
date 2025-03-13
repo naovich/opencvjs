@@ -12,7 +12,6 @@ let showGuide = true;
 let captureMetrics = {};
 let distanceGuideRect = null;
 
-// Constantes pour les métriques
 const BRIGHTNESS_MIN = 50;
 const BRIGHTNESS_MAX = 200;
 const VARIANCE_MIN = 50;
@@ -26,7 +25,6 @@ const CAPTURE_HEIGHT = 720;
 const EYES_ANGLE_THRESHOLD = 3;
 
 async function onOpenCvReady() {
-  console.log("OpenCV.js est prêt.");
   document.getElementById("loading").style.display = "none";
   openCv = await cv;
   initCamera();
@@ -63,7 +61,6 @@ function initCamera() {
       video
         .play()
         .then(() => {
-          console.log("Lecture vidéo démarrée avec succès");
           document.removeEventListener("touchend", startVideoPlayback);
         })
         .catch((err) => {
@@ -122,7 +119,6 @@ function initCamera() {
     autoCaptureEnabled = e.target.checked;
   });
 
-  // Configurer les événements pour le zoom et le déplacement
   const zoomCanvas = document.getElementById("zoomCanvas");
   zoomCanvas.addEventListener("mousedown", startDrag);
   zoomCanvas.addEventListener("mousemove", drag);
@@ -225,7 +221,7 @@ async function detectFace(src, gray) {
         height: bestFace.height,
       };
 
-      // Dessiner le rectangle du visage si l'option est activée
+      // Dessiner le rectangle du visage
       if (showFace) {
         let pt1 = new openCv.Point(currentFaceRect.x, currentFaceRect.y);
         let pt2 = new openCv.Point(
@@ -284,7 +280,7 @@ async function detectEyes(src, faceRect) {
     // Filtrer pour ne garder que les yeux dans la moitié supérieure du visage
     eyesArray = eyesArray.filter((eye) => eye.y < faceRect.height * 0.5);
 
-    // Garder les deux premiers yeux seulement
+    // Garder les deux premiers yeux seulement (des fois on peux avoir des artefacts )
     let selectedEyes = eyesArray.slice(0, 2);
     let eyesAngle = null;
 
@@ -314,7 +310,7 @@ async function detectEyes(src, faceRect) {
         ) *
         (180 / Math.PI);
 
-      // Dessiner les rectangles des yeux si l'option est activée
+      // Dessiner les rectangles des yeux
       if (showFace) {
         selectedEyes.forEach((eye) => {
           let eyeRect = new openCv.Rect(
@@ -331,7 +327,6 @@ async function detectEyes(src, faceRect) {
           openCv.rectangle(src, pt1, pt2, [238, 130, 238, 255], 2);
         });
 
-        // Dessiner la ligne entre les yeux
         openCv.line(
           src,
           new openCv.Point(leftEyeCenter.x, leftEyeCenter.y),
@@ -374,7 +369,7 @@ async function capturePhoto(mode = "auto") {
 
   try {
     let extrapolatedCardRect = extrapolateCardRectangle(lastFaceRect);
-    let lastCardRect = extrapolatedCardRect; // Utiliser le rectangle extrapolé
+    let lastCardRect = extrapolatedCardRect;
 
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d", {
@@ -422,7 +417,7 @@ async function capturePhoto(mode = "auto") {
       distance: calculateDistance(extrapolatedCardRect),
       brightness: brightnessEvaluation,
       variance: varianceEvaluation,
-      cardAngle: calculateCardAngle(extrapolatedCardRect),
+      cardAngle: extrapolatedCardRect ? 0 : null,
     };
 
     if (video.readyState === 4) {
@@ -472,36 +467,9 @@ async function capturePhoto(mode = "auto") {
       photoCtx.filter = "contrast(1.1) brightness(1.05)";
       photoCtx.imageSmoothingEnabled = true;
       photoCtx.imageSmoothingQuality = "high";
-
       document.getElementById("photoScreen").style.display = "flex";
       photoTaken = true;
-
       const metricsDiv = document.getElementById("photoMetrics");
-      /* metricsDiv.innerHTML = `
-              <strong>Mode de capture:</strong> ${
-                captureMetrics.mode === "auto" ? "Automatique" : "Manuel"
-              }<br>
-              <strong>Heure:</strong> ${captureMetrics.timestamp}<br>
-              <strong>Alignement visage-carte:</strong> ${
-                captureMetrics.alignment || "Non mesuré"
-              }<br>
-              <strong>Distance caméra-carte:</strong> ${
-                captureMetrics.distance || "Non mesurée"
-              }<br>
-              <strong>Luminosité:</strong> ${
-                captureMetrics.brightness || "Non mesurée"
-              }<br>
-              <strong>Netteté:</strong> ${
-                captureMetrics.variance || "Non mesurée"
-              }<br>
-              <strong>Alignement de la carte:</strong> ${
-                captureMetrics.cardAngle
-                  ? captureMetrics.cardAngle + "°"
-                  : "Non mesuré"
-              }
-            `;*/
-
-      console.log("Photo capturée");
     }
   } catch (err) {
     console.error("Erreur lors de la capture:", err);
@@ -515,9 +483,7 @@ function retakePhoto() {
 }
 
 function confirmPhoto() {
-  alert(
-    "Photo validée! Vous pouvez implémenter ici l'action souhaitée (envoi au serveur, etc.)"
-  );
+  alert("Photo validée!");
 }
 
 function calculateAlignment(faceRect, cardRect) {
@@ -528,7 +494,7 @@ function calculateAlignment(faceRect, cardRect) {
   const cardCenterX = cardRect.x + cardRect.width / 2;
 
   const horizontalOffset = Math.abs(faceCenterX - cardCenterX);
-  const maxOffset = cardRect.width * 0.1; // 10% de la largeur de la carte
+  const maxOffset = cardRect.width * 0.1;
 
   if (horizontalOffset <= maxOffset) {
     return "Correct";
@@ -584,14 +550,6 @@ async function analyzeImageQuality(gray) {
     console.error("Erreur dans analyzeImageQuality:", err);
     return { variance: 0, brightness: 0 };
   }
-}
-
-function calculateCardAngle(cardRect) {
-  if (!cardRect) return null;
-
-  // On suppose que la carte est horizontale
-  //TODO
-  return 0;
 }
 
 function calculateIntersection(rect1, rect2) {
