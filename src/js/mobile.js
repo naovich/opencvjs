@@ -477,7 +477,7 @@ async function capturePhoto(mode = "auto") {
       photoTaken = true;
 
       const metricsDiv = document.getElementById("photoMetrics");
-      metricsDiv.innerHTML = `
+      /* metricsDiv.innerHTML = `
               <strong>Mode de capture:</strong> ${
                 captureMetrics.mode === "auto" ? "Automatique" : "Manuel"
               }<br>
@@ -499,7 +499,7 @@ async function capturePhoto(mode = "auto") {
                   ? captureMetrics.cardAngle + "°"
                   : "Non mesuré"
               }
-            `;
+            `;*/
 
       console.log("Photo capturée");
     }
