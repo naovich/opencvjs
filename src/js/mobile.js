@@ -1,4 +1,3 @@
-
 let canvas, ctx, video, photoCanvas, photoCtx;
 let openCv = null;
 let faceClassifier = null;
@@ -11,14 +10,14 @@ let showFace = true;
 let showCard = true;
 let showGuide = true;
 let captureMetrics = {};
-let distanceGuideRect = null; 
+let distanceGuideRect = null;
 
 // Constantes pour les métriques
-const BRIGHTNESS_MIN = 50; 
-const BRIGHTNESS_MAX = 200; 
-const VARIANCE_MIN = 50; 
-const SIZE_RATIO_MIN = 0.8; 
-const SIZE_RATIO_MAX = 1.0; 
+const BRIGHTNESS_MIN = 50;
+const BRIGHTNESS_MAX = 200;
+const VARIANCE_MIN = 50;
+const SIZE_RATIO_MIN = 0.9;
+const SIZE_RATIO_MAX = 1.0;
 
 const CARD_RATIO = 85.6 / 53.98; // Ratio standard d'une carte d'identité
 const CAPTURE_WIDTH = 1280;
@@ -651,7 +650,7 @@ function checkDistance(cardRect) {
 }
 
 function drawCardGuide(ctx, width, height) {
-  const guideWidth = width * 0.85; 
+  const guideWidth = width * 0.85;
   const guideHeight = guideWidth / CARD_RATIO;
 
   const guideX = (width - guideWidth) / 2;
@@ -726,12 +725,12 @@ async function processVideo() {
             const distanceResult = checkDistance(cardRect);
 
             if (
-              distanceResult.correct && 
-              imageQuality.brightness >= BRIGHTNESS_MIN && 
+              distanceResult.correct &&
+              imageQuality.brightness >= BRIGHTNESS_MIN &&
               imageQuality.brightness <= BRIGHTNESS_MAX &&
-              imageQuality.variance >= VARIANCE_MIN && 
+              imageQuality.variance >= VARIANCE_MIN &&
               eyesAngle !== null &&
-              Math.abs(eyesAngle) < EYES_ANGLE_THRESHOLD 
+              Math.abs(eyesAngle) < EYES_ANGLE_THRESHOLD
             ) {
               console.log("Conditions remplies pour la capture automatique");
               console.log(`Angle des yeux: ${eyesAngle.toFixed(1)}°`);
