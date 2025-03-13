@@ -417,7 +417,7 @@ async function capturePhoto(mode = "auto") {
       distance: calculateDistance(extrapolatedCardRect),
       brightness: brightnessEvaluation,
       variance: varianceEvaluation,
-      cardAngle: extrapolatedCardRect ? 0 : null,
+      cardAngle: calculateCardAngle(extrapolatedCardRect),
     };
 
     if (video.readyState === 4) {
@@ -550,6 +550,11 @@ async function analyzeImageQuality(gray) {
     console.error("Erreur dans analyzeImageQuality:", err);
     return { variance: 0, brightness: 0 };
   }
+}
+
+function calculateCardAngle(cardRect) {
+  if (!cardRect) return null;
+  return 0;
 }
 
 function calculateIntersection(rect1, rect2) {
